@@ -2,7 +2,8 @@
 //  ATSITIKTINUMAS SU SĖKLA (seed) – gryna logika
 //  Tas pats seed'as visada duoda tą pačią skaičių seką, todėl
 //  sugeneruotas pasaulis kiekvieną kartą bus lygiai toks pat
-//  (ir serveryje, ir visų žaidėjų naršyklėse).
+//  (ir serveryje, ir visų žaidėjų naršyklėse). Šis failas – BENDRAS
+//  klientui ir serveriui (aplankas shared/), todėl jame nėra Phaser.
 // =====================================================================
 
 // Sveikųjų skaičių „maišytuvas“ – iš (x, y, seed) padaro atsitiktinį skaičių

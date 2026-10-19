@@ -1,5 +1,5 @@
 import { CONFIG } from '../config.js';
-import { getTile, isTillable, isWalkable, FARM_ZONE } from './WorldMap.js';
+import { getTile, isTillable, isWalkable, getPlotById } from '../../shared/WorldMap.js';
 import { createTime } from './Time.js';
 import { getItemInfo } from './Inventory.js';
 import { cleanQuestState } from './Quests.js';
@@ -16,6 +16,8 @@ import { cleanQuestState } from './Quests.js';
 //             atsirado laikas, oras ir energija
 //    v4 → v5: daug augalų; pasirinktas ne langelio numeris, o daiktas
 //    v5 → v6: kaimynai, užduotys ir draugystė
+//    v6 → v7: 200x200 pasaulis su miestu ir 24 ūkių sklypais; žaidėjas
+//             gauna savo sklypą, laukeliai perkeliami į jo dirvą
 //  Be to, KIEKVIENĄ kartą trūkstami ar sugadinti laukai užpildomi
 //  numatytomis reikšmėmis (fillDefaults).
 //  Jei duomenys visai sugadinti – metame klaidą, o SaveManager pradeda naują žaidimą.
@@ -44,7 +46,7 @@ export function migrateSave(data, map) {
   }
 
   if (version < 3) {
-    const { plots, lost } = relocatePlots(data.plots, map);
+    const { plots, lost } = relocatePlots(data.plots, map, defaultPlot());
     data.plots = plots;
     data.player = null;
     data.world = currentWorldInfo();
@@ -73,6 +75,16 @@ export function migrateSave(data, map) {
     version = 6;
   }
 
+  if (version < 7) {
+    data.plotId = CONFIG.DEFAULT_PLOT_ID;
+    const { plots, lost } = relocatePlots(data.plots, map, defaultPlot());
+    data.plots = plots;
+    data.player = null;
+    data.world = currentWorldInfo();
+    notices.push(`Pasaulis tapo daug didesnis: centre – miestas su aikšte, aplink – ūkių sklypai. Tavo ūkis – sklypas ${data.plotId}, prie miesto vakaruose${lost ? ` (${lost} laukeliai netilpo)` : ''}. Didelis žemėlapis – klavišas M.`);
+    version = 7;
+  }
+
   if (version !== CONFIG.SAVE_VERSION) {
     throw new Error(`Nežinoma išsaugojimo versija: ${data.version}`);
   }
@@ -83,7 +95,7 @@ export function migrateSave(data, map) {
   const w = data.world;
   const cur = currentWorldInfo();
   if (!w || w.width !== cur.width || w.height !== cur.height || w.seed !== cur.seed) {
-    const { plots, lost } = relocatePlots(data.plots, map);
+    const { plots, lost } = relocatePlots(data.plots, map, getPlotById(data.plotId) ?? defaultPlot());
     data.plots = plots;
     data.player = null;
     data.world = cur;
@@ -124,6 +136,7 @@ function fillDefaults(data, map) {
   }
   delete data.selectedSlot;
   cleanQuestState(data);
+  if (!getPlotById(data.plotId)) data.plotId = CONFIG.DEFAULT_PLOT_ID;
 
   // Personažas negali atsirasti vandenyje, medyje, name ar už pasaulio ribų
   if (data.player) {
@@ -142,10 +155,15 @@ function cleanAllPlots(plots) {
   return out;
 }
 
-// Perkelia laukelius į ūkio zoną išlaikant jų tarpusavio išdėstymą:
-// kairysis viršutinis senas laukelis atsiduria ūkio zonos kampe.
+function defaultPlot() {
+  return getPlotById(CONFIG.DEFAULT_PLOT_ID);
+}
+
+// Perkelia laukelius į sklypo dirvą išlaikant jų tarpusavio išdėstymą:
+// kairysis viršutinis senas laukelis atsiduria dirvos kampe.
 // Grąžina { plots, lost }, kur lost – kiek laukelių netilpo.
-export function relocatePlots(oldPlots, map) {
+export function relocatePlots(oldPlots, map, plot) {
+  const field = plot.field;
   const entries = [];
   for (const [key, plot] of Object.entries(oldPlots ?? {})) {
     const [x, y] = key.split(',').map(Number);
@@ -159,10 +177,11 @@ export function relocatePlots(oldPlots, map) {
   const plots = {};
   let lost = 0;
   for (const { x, y, plot } of entries) {
-    const nx = FARM_ZONE.x + (x - minX);
-    const ny = FARM_ZONE.y + (y - minY);
+    const nx = field.x + (x - minX);
+    const ny = field.y + (y - minY);
     const key = `${nx},${ny}`;
-    if (isTillable(getTile(map, nx, ny)) && !plots[key]) plots[key] = plot;
+    const inside = nx < field.x + field.w && ny < field.y + field.h;
+    if (inside && isTillable(getTile(map, nx, ny)) && !plots[key]) plots[key] = plot;
     else lost += 1;
   }
   return { plots, lost };

@@ -18,6 +18,7 @@ export const DIRT_VARIANTS = 2;
 export const FLOWER_VARIANTS = 3;
 export const WATER_FRAMES = 4;
 export const PATH_VARIANTS = 2;
+export const PLAZA_VARIANTS = 2;
 
 // Tvoros kadro pavadinimas pagal kaimynų kaukę (1=š, 2=r, 4=p, 8=v)
 export const fenceFrameName = (mask) => `f${mask}`;
@@ -30,6 +31,7 @@ export function makeTerrain(scene) {
     for (let i = 0; i < DIRT_VARIANTS; i++) makeDirt(scene, sk(`dirt_${i}`, season), 300 + i * 31, look);
     for (let i = 0; i < FLOWER_VARIANTS; i++) makeFlowers(scene, sk(`flowers_${i}`, season), 500 + i * 13, look);
     for (let i = 0; i < PATH_VARIANTS; i++) makePath(scene, sk(`path_${i}`, season), 700 + i * 11, look);
+    for (let i = 0; i < PLAZA_VARIANTS; i++) makePlaza(scene, sk(`plaza_${i}`, season), 800 + i * 7, look);
     makeGrassEdges(scene, season, look);
   }
   makeBridge(scene, 'bridge_h', 0);
@@ -209,6 +211,35 @@ function makePath(scene, key, seed, look) {
       ctx.fill();
     }
     if (look.snow) snowPatches(ctx, rnd, 4);
+    ctx.restore();
+  });
+}
+
+// ---------- Miesto aikštės grindinys (trinkelės) ----------
+// Trinkelės dedamos eilėmis, kas antra eilė perstumta per pusę trinkelės,
+// kad gretimi langeliai susijungtų be siūlių.
+function makePlaza(scene, key, seed, look) {
+  drawTexture(scene, key, T, T, (ctx) => {
+    const rnd = seededRandom(seed);
+    noiseRect(ctx, 0, 0, T, T, 0x8d8576, 10, rnd); // tarpai tarp trinkelių
+    ctx.save();
+    ctx.scale(S, S);
+    const rows = 4;
+    const h = 32 / rows;
+    for (let r = 0; r < rows; r++) {
+      const shift = r % 2 ? 4 : 0;
+      for (let c = -1; c < 4; c++) {
+        const x = c * 8 + shift;
+        const tone = 0xc9c0ad + Math.floor((rnd() - 0.5) * 24) * 0x010101;
+        roundRect(ctx, x + 0.6, r * h + 0.6, 6.8, h - 1.2, 1.6);
+        ctx.fillStyle = css(tone);
+        ctx.fill();
+        // šviesus viršutinis kraštas – trinkelė atrodo iškili
+        ctx.fillStyle = css(0xffffff, 0.18);
+        ctx.fillRect(x + 1.4, r * h + 1, 5.2, 1);
+      }
+    }
+    if (look.snow) snowPatches(ctx, rnd, 3);
     ctx.restore();
   });
 }

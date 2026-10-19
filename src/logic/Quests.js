@@ -1,7 +1,7 @@
 import { CONFIG } from '../config.js';
 import { NPCS, QUESTS, GIFT_REACTIONS } from '../data/npcs.js';
 import { addItem, removeItem, getCount, getItemInfo } from './Inventory.js';
-import { hash2D } from './Random.js';
+import { hash2D } from '../../shared/Random.js';
 
 // =====================================================================
 //  UŽDUOTYS IR DRAUGYSTĖ (gryna logika)

@@ -1,5 +1,5 @@
 import { CONFIG } from '../config.js';
-import { getTile, isTillable } from './WorldMap.js';
+import { getTile, isTillable, plotAt, inField } from '../../shared/WorldMap.js';
 import { addItem, removeItem, hasItem, cropItemId } from './Inventory.js';
 import { getSeason, SEASON_NAMES } from './Time.js';
 
@@ -101,6 +101,12 @@ export function startNewDay(state, prevSeason, newSeason, weather) {
   return { grown, wilted };
 }
 
+// Ar langelis yra ŽAIDĖJO sklypo dirvoje? Svetimame sklype ūkininkauti negalima.
+export function isOwnField(state, x, y) {
+  const plot = plotAt(x, y);
+  return !!plot && plot.id === state.plotId && inField(plot, x, y);
+}
+
 // ---------- Veiksmo „peržiūra“ ----------
 
 // Kokį veiksmą atliktume su šiuo daiktu ant šio langelio?
@@ -114,7 +120,7 @@ export function getActionPreview(state, map, x, y, itemId) {
 
   if (itemId === 'hoe') {
     if (plot && isDead(plot)) return 'clear';
-    return !plot && isTillable(getTile(map, x, y)) ? 'till' : null;
+    return !plot && isTillable(getTile(map, x, y)) && isOwnField(state, x, y) ? 'till' : null;
   }
   if (itemId === 'watering_can') return plot ? 'water' : null;
   if (itemId.startsWith('seed_')) return plot && !plot.crop ? 'plant' : null;
@@ -124,7 +130,8 @@ export function getActionPreview(state, map, x, y, itemId) {
 // ---------- Veiksmai ----------
 
 export function till(state, map, x, y) {
-  if (!isTillable(getTile(map, x, y))) return fail('Čia kasti negalima – ieškok rudos dirvos ūkyje.');
+  if (!isTillable(getTile(map, x, y))) return fail('Čia kasti negalima – ieškok rudos dirvos savo ūkyje.');
+  if (!isOwnField(state, x, y)) return fail('Tai ne tavo sklypas – kasti galima tik savo ūkyje.');
   if (getPlot(state, x, y)) return fail('Ši žemė jau sukasta.');
 
   state.plots[plotKey(x, y)] = { crop: null, daysGrown: 0, watered: state.time.weather === 'rain', dead: false };

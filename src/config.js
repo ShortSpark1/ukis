@@ -5,6 +5,10 @@
 //  Norėdamas pakeisti balansą, keisk tik šį failą.
 // =====================================================================
 
+// Pasaulio dydis, seed'as ir sklypai – bendrame faile shared/worldConfig.js,
+// nes juos naudoja ir serveris
+import { WORLD } from '../shared/worldConfig.js';
+
 export const CONFIG = {
   // --- Žaidimas ---
   GAME_TITLE: 'Ūkis',
@@ -16,11 +20,23 @@ export const CONFIG = {
 
   // --- Žemėlapis ir ekranas ---
   TILE_SIZE: 48,        // vieno langelio dydis pikseliais (visa grafika prisitaiko)
-  MAP_WIDTH: 60,        // VISO pasaulio plotis langeliais
-  MAP_HEIGHT: 45,       // VISO pasaulio aukštis langeliais
+  MAP_WIDTH: WORLD.WIDTH,   // VISO pasaulio plotis langeliais (keisk shared/worldConfig.js)
+  MAP_HEIGHT: WORLD.HEIGHT, // VISO pasaulio aukštis langeliais
+  WORLD_SEED: WORLD.SEED,   // pasaulio generavimo „sėkla“ – tas pats skaičius = tas pats pasaulis
   VIEW_WIDTH: 20,       // kiek langelių matosi ekrane horizontaliai
   VIEW_HEIGHT: 15,      // kiek langelių matosi ekrane vertikaliai
-  WORLD_SEED: 20261018, // pasaulio generavimo „sėkla“ – tas pats skaičius = tas pats pasaulis
+  // Piešiama tik matoma pasaulio dalis: pasaulis padalintas į „chunk'us“
+  // (kvadratus po CHUNK_SIZE x CHUNK_SIZE langelių). Chunk'ai aplink kamerą
+  // sukuriami, o nutolę – ištrinami.
+  CHUNK_SIZE: 16,
+  CHUNK_MARGIN_TILES: 4,    // kiek langelių už ekrano krašto jau piešiama (kad nesimatytų „gimimo“)
+  CHUNK_KEEP_TILES: 10,     // chunk'as ištrinamas, kai nutolsta toliau nei tiek langelių už ekrano
+  CHUNKS_PER_FRAME: 2,      // daugiausia tiek naujų chunk'ų per kadrą (kad nestrigtų)
+  // Minimapas: mažas (kampe) ir didelis (ekrano viduryje); pikseliai vienam langeliui
+  MINIMAP_SCALE: 1,
+  MINIMAP_BIG_SCALE: 3,
+  // Žaidėjo sklypas, kol nėra serverio (keisk shared/worldConfig.js)
+  DEFAULT_PLOT_ID: WORLD.DEFAULT_PLOT_ID,
   HUD_HEIGHT: 100,      // apatinės juostos (inventoriaus) aukštis pikseliais
 
   // --- Personažas ---
@@ -209,6 +225,6 @@ export const CONFIG = {
 
   // --- Išsaugojimas ---
   SAVE_KEY: 'ukis_save_v1',
-  SAVE_VERSION: 6,
+  SAVE_VERSION: 7,
   AUTOSAVE_INTERVAL_SEC: 10,
 };

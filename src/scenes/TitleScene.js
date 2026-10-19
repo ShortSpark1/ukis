@@ -80,7 +80,7 @@ export class TitleScene extends Phaser.Scene {
       ['WASD / rodyklės', 'eiti,  Tarpas – naudoti daiktą'],
       ['1–7', 'pasirinkti daiktą,  I – kuprinė'],
       ['E', 'kalbėti su kaimynais, parduotuvė, miegas'],
-      ['J', 'užduočių žurnalas,  M – minimapas'],
+      ['J', 'užduočių žurnalas,  M – žemėlapis'],
     ];
     const pw = 520;
     const ph = 40 + lines.length * 26;

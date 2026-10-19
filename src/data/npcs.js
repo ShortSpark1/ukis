@@ -3,8 +3,9 @@
 //  Tai DUOMENŲ failas: čia nėra jokios logikos, tik tekstai ir skaičiai.
 //  Norėdamas pridėti naują užduotį ar pakeisti pokalbį – keisk tik čia.
 //
-//  Koordinatės – pasaulio langeliai (x, y). Jos turi būti ant takų ar
-//  žolės (ne vandenyje, ne medyje), kitaip NPC ten nenueis.
+//  Vietos tvarkaraščiuose – PAVADINIMAI (pvz. 'fountain_n'). Jų koordinatės
+//  ir kaimynų namelių vietos aprašytos bendrame faile shared/WorldMap.js
+//  (PLACES, COTTAGES, NPC_HOMES), nes pasaulis generuojamas kodu.
 // =====================================================================
 
 // ---------------------------------------------------------------------
@@ -12,10 +13,10 @@
 //   id, name, title   – identifikatorius, vardas, kas jis toks
 //   look              – išvaizdos spalvos (oda, plaukai, marškiniai, kombinezonas,
 //                       skrybėlė / null, barzda / null, ilgi plaukai)
-//   home.cottage      – namelio (2x2) kairysis viršutinis langelis; null – gyvena parduotuvėje
-//   home.door         – langelis prie durų (čia NPC išeina ir grįžta)
+//   home.cottage      – true: gyvena savo namelyje; false – parduotuvėje
 //   home.roof         – namelio stogo spalvos [viršus, apačia]
-//   schedule          – dienos tvarkaraštis: nuo kurios valandos kur būti.
+//   schedule          – dienos tvarkaraštis: nuo kurios valandos kur būti
+//                       (at – vietos pavadinimas iš PLACES).
 //                       { home: true } – eina namo (naktį jo nesimato)
 //   greetings         – pasisveikinimai pagal draugystės lygį (0, 2, 4 ir t.t.)
 //   gifts             – kokias daržoves mėgsta / nemėgsta (augalų id)
@@ -28,11 +29,11 @@ export const NPCS = {
       skin: 0xf0c49a, hair: 0x4a2a18, shirt: 0x3f8f5b, overall: 0xf0e2c4, boot: 0x5b3a22,
       hat: null, beard: null, longHair: true,
     },
-    home: { cottage: null, door: { x: 40, y: 22 } },
+    home: { cottage: false },
     schedule: [
-      { hour: 8, at: { x: 40, y: 23 } },
-      { hour: 12, at: { x: 31, y: 27 } },
-      { hour: 14, at: { x: 38, y: 24 } },
+      { hour: 8, at: 'shop_front' },
+      { hour: 12, at: 'w_farms' },
+      { hour: 14, at: 'shop_front' },
       { hour: 20, home: true },
     ],
     greetings: {
@@ -49,11 +50,11 @@ export const NPCS = {
       skin: 0xe8b48a, hair: 0x8a8a8a, shirt: 0x2f5f9f, overall: 0x5a4a3a, boot: 0x3a2a1a,
       hat: { color: 0xf2c12e, band: 0xc9961a }, beard: 0xb5b5b5, longHair: false,
     },
-    home: { cottage: { x: 33, y: 5 }, door: { x: 34, y: 7 }, roof: [0x5a86c0, 0x34507a] },
+    home: { cottage: true, roof: [0x5a86c0, 0x34507a] },
     schedule: [
-      { hour: 6.5, at: { x: 39, y: 9 } },
-      { hour: 13, at: { x: 53, y: 27 } },
-      { hour: 16, at: { x: 39, y: 9 } },
+      { hour: 6.5, at: 'lake_dock' },
+      { hour: 13, at: 'pond_shore' },
+      { hour: 16, at: 'lake_dock' },
       { hour: 20.5, home: true },
     ],
     greetings: {
@@ -70,11 +71,11 @@ export const NPCS = {
       skin: 0xf6cfa8, hair: 0xe8c26a, shirt: 0x9a5fc0, overall: 0x6a8f3a, boot: 0x5b3a22,
       hat: { color: 0xf6e7b0, band: 0xff8fb8 }, beard: null, longHair: true,
     },
-    home: { cottage: { x: 14, y: 23 }, door: { x: 15, y: 25 }, roof: [0xc77bb0, 0x8a4a78] },
+    home: { cottage: true, roof: [0xc77bb0, 0x8a4a78] },
     schedule: [
-      { hour: 8, at: { x: 22, y: 21 } },
-      { hour: 11, at: { x: 37, y: 23 } },
-      { hour: 15, at: { x: 11, y: 27 } },
+      { hour: 8, at: 'w_farms' },
+      { hour: 11, at: 'fountain_w' },
+      { hour: 15, at: 'board' },
       { hour: 19.5, home: true },
     ],
     greetings: {
@@ -91,11 +92,11 @@ export const NPCS = {
       skin: 0xe8b48a, hair: 0xe0e0e0, shirt: 0x8a6a4a, overall: 0x4a5a3a, boot: 0x3a2a1a,
       hat: { color: 0x5a4a3a, band: 0x3a2a1a }, beard: 0xf0f0f0, longHair: false,
     },
-    home: { cottage: { x: 43, y: 23 }, door: { x: 44, y: 25 }, roof: [0x9a7a5a, 0x5e4630] },
+    home: { cottage: true, roof: [0x9a7a5a, 0x5e4630] },
     schedule: [
-      { hour: 7, at: { x: 23, y: 27 } },
-      { hour: 10, at: { x: 31, y: 26 } },
-      { hour: 16, at: { x: 45, y: 26 } },
+      { hour: 7, at: 'n_crossroads' },
+      { hour: 10, at: 'e_farms' },
+      { hour: 16, at: 'fountain_e' },
       { hour: 19, home: true },
     ],
     greetings: {

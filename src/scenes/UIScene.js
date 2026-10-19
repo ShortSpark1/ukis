@@ -10,21 +10,23 @@ import { xpToNextLevel } from '../logic/Progression.js';
 import { getSeason, getDayOfSeason, getYear, formatClock, getDarkness, SEASON_NAMES, SEASON_NAMES_SHORT } from '../logic/Time.js';
 // Visa grafika – tik iš SpriteLibrary
 import { ensurePanel, textStyle, makeMinimapTexture } from '../art/SpriteLibrary.js';
-import { TILE } from '../logic/WorldMap.js';
+import { TILE, TOWN, getPlotById } from '../../shared/WorldMap.js';
+import { WORLD } from '../../shared/worldConfig.js';
 import { VIEW_PX_W, VIEW_PX_H, SLOT, HOTBAR_Y, slotCenter } from './layout.js';
 
 const STATS_X = 600;
 const BAR_W = 200;
 const T = CONFIG.TILE_SIZE;
 
-// Minimapas: kiek pikselių vienam pasaulio langeliui
-const MM_SCALE = 3;
+// Minimapo režimai (klavišas M): mažas kampe → didelis ekrano viduryje → paslėptas
+const MM_MODES = ['small', 'big', 'hidden'];
 // Minimapo spalvos pagal langelio tipą
 const MM_COLORS = {
   [TILE.GRASS]: '#5a9c3a', [TILE.FLOWERS]: '#6aa845', [TILE.DIRT]: '#8a5a32',
   [TILE.WATER]: '#2f74c0', [TILE.PATH]: '#c9a874', [TILE.BRIDGE]: '#8a6038',
   [TILE.TREE]: '#24622a', [TILE.ROCK]: '#8e9196', [TILE.BUSH]: '#3b8a35', [TILE.SHOP]: '#d04a3a',
   [TILE.FENCE]: '#c99258', [TILE.HOUSE]: '#4e7a52', [TILE.COTTAGE]: '#7a5a8a',
+  [TILE.PLAZA]: '#c9c0ad', [TILE.FOUNTAIN]: '#8fd3ff', [TILE.BOARD]: '#ffd54f',
 };
 
 // =====================================================================
@@ -147,7 +149,7 @@ export class UIScene extends Phaser.Scene {
       'Pelė: kairys – eiti ir naudoti, dešinys – tik eiti',
       'WASD / rodyklės – eiti     Tarpas – naudoti     1–7 – daiktai   I – kuprinė',
       'E – kalbėti / parduotuvė / miegoti   J – užduotys   K – išsaugoti',
-      'N – naujas žaidimas   M – minimapas   H – slėpti šią pagalbą',
+      'N – naujas žaidimas   M – žemėlapis (mažas / didelis)   H – slėpti šią pagalbą',
     ];
     this.help = this.add.container(10, 10).setDepth(50);
     this.help.add(this.add.image(0, 0, ensurePanel(this, 'toast', 470, 90)).setOrigin(0));
@@ -179,7 +181,7 @@ export class UIScene extends Phaser.Scene {
       this.toggleBag();
     });
     this.input.keyboard.on('keydown-H', () => this.help.setVisible(!this.help.visible));
-    this.input.keyboard.on('keydown-M', () => this.setMinimapVisible(!this.minimap.visible));
+    this.input.keyboard.on('keydown-M', () => this.cycleMinimap());
 
     // Pelės ratukas – sukti per juostos daiktus
     this.input.on('wheel', (pointer, objects, dx, dy) => {
@@ -404,40 +406,74 @@ export class UIScene extends Phaser.Scene {
   }
 
   // ---------- Minimapas ----------
-  // Visas pasaulis sumažintas iki mažo paveikslėlio: 1 langelis = 3 px.
-  // Ant jo piešiame laukelius, matomą ekrano plotą ir žaidėjo tašką.
+  // Visas pasaulis sumažintas iki paveikslėlio. Du dydžiai:
+  //   mažas  – kampe, 1 langelis = CONFIG.MINIMAP_SCALE px;
+  //   didelis – ekrano viduryje, 1 langelis = CONFIG.MINIMAP_BIG_SCALE px.
+  // Ant jo piešiame laukelius, savo sklypą, matomą ekrano plotą ir žaidėjo tašką.
   createMinimap() {
     const map = this.registry.get('map');
-    const w = map[0].length * MM_SCALE;
-    const h = map.length * MM_SCALE;
+    // Pagrindai piešiami vieną kartą (žemėlapis nesikeičia)
+    makeMinimapTexture(this, 'minimap_small', map, CONFIG.MINIMAP_SCALE, MM_COLORS);
+    makeMinimapTexture(this, 'minimap_big', map, CONFIG.MINIMAP_BIG_SCALE, MM_COLORS);
+    this.mapTilesW = map[0].length;
+    this.mapTilesH = map.length;
+    // Mažojo minimapo vieta – nuo jos skaičiuojama laikrodžio vieta
+    const w = this.mapTilesW * CONFIG.MINIMAP_SCALE;
+    const h = this.mapTilesH * CONFIG.MINIMAP_SCALE;
+    this.minimapSmallRect = { x: VIEW_PX_W - w - 22, y: 10, w: w + 12, h: h + 26 };
+    this.mmMode = 'small';
+    this.buildMinimap();
+  }
 
-    // Pagrindas piešiamas vieną kartą (žemėlapis nesikeičia)
-    makeMinimapTexture(this, 'minimap_base', map, MM_SCALE, MM_COLORS);
+  // (Per)kuria minimapą pagal dabartinį režimą
+  buildMinimap() {
+    this.minimap?.destroy();
+    const big = this.mmMode === 'big';
+    const scale = big ? CONFIG.MINIMAP_BIG_SCALE : CONFIG.MINIMAP_SCALE;
+    this.mmScale = scale;
+    const w = this.mapTilesW * scale;
+    const h = this.mapTilesH * scale;
+    const x0 = big ? Math.round((VIEW_PX_W - w) / 2) : this.minimapSmallRect.x + 6;
+    const y0 = big ? Math.round((VIEW_PX_H - h) / 2) - 8 : this.minimapSmallRect.y + 6;
 
-    const x0 = VIEW_PX_W - w - 16;
-    const y0 = 16;
-    this.minimap = this.add.container(x0, y0).setDepth(60);
+    this.minimap = this.add.container(x0, y0).setDepth(big ? 70 : 60);
     this.minimap.add(this.add.image(-6, -6, ensurePanel(this, 'wood', w + 12, h + 12)).setOrigin(0));
-    const base = this.add.image(0, 0, 'minimap_base').setOrigin(0).setInteractive({ useHandCursor: true });
+    const base = this.add.image(0, 0, big ? 'minimap_big' : 'minimap_small').setOrigin(0).setInteractive({ useHandCursor: true });
     // Paspaudus minimapą – personažas eina į tą vietą
     base.on('pointerdown', (pointer, localX, localY) => {
-      EventBus.emit(EVENTS.MINIMAP_WALK, { x: Math.floor(localX / MM_SCALE), y: Math.floor(localY / MM_SCALE) });
+      EventBus.emit(EVENTS.MINIMAP_WALK, { x: Math.floor(localX / scale), y: Math.floor(localY / scale) });
     });
     this.mmPlots = this.add.graphics();
     this.mmView = this.add.graphics();
-    this.mmPlayer = this.add.circle(0, 0, 3.5, 0xff3b30).setStrokeStyle(1.5, 0xffffff);
+    this.mmPlayer = this.add.circle(0, 0, big ? 5 : 3, 0xff3b30).setStrokeStyle(1.5, 0xffffff);
     this.minimap.add([base, this.mmPlots, this.mmView, this.mmPlayer]);
-    this.minimap.add(this.add.text(w / 2, h + 3, 'Žemėlapis (M)', textStyle(11, '#e8d3a8')).setOrigin(0.5, 0));
+    const label = big ? 'Spausk, kur nori nueiti.  M – uždaryti' : 'Žemėlapis (M – didesnis)';
+    this.minimap.add(this.add.text(w / 2, h + 3, label, textStyle(big ? 13 : 11, '#e8d3a8')).setOrigin(0.5, 0));
+    if (big) {
+      // Didžiajame žemėlapyje – vietų pavadinimai
+      const myPlot = getPlotById(this.state.plotId);
+      const labels = [
+        [TOWN.x + TOWN.w / 2, TOWN.y - 2, 'Miestas'],
+        [myPlot.x + WORLD.PLOT_SIZE / 2, myPlot.y - 1, 'Tavo ūkis'],
+      ];
+      for (const [tx, ty, text] of labels) {
+        this.minimap.add(this.add.text(tx * scale, ty * scale, text, textStyle(14, '#ffe7a3')).setOrigin(0.5, 1));
+      }
+    }
     this.tweens.add({ targets: this.mmPlayer, scale: 1.35, duration: 500, yoyo: true, repeat: -1 });
 
     // Pranešame GameScene, kad šio ploto paspaudimai skirti UI, ne žaidimui
     this.minimapRect = { x: x0 - 6, y: y0 - 6, w: w + 12, h: h + 26 };
+    this.minimap.setVisible(this.mmMode !== 'hidden');
     this.drawMinimapPlots();
+    if (this.clockRect) this.updateUIRects();
   }
 
-  setMinimapVisible(visible) {
-    this.minimap.setVisible(visible);
-    this.updateUIRects();
+  // Klavišas M: mažas → didelis → paslėptas → mažas
+  cycleMinimap() {
+    if (this.isModalOpen()) return;
+    this.mmMode = MM_MODES[(MM_MODES.indexOf(this.mmMode) + 1) % MM_MODES.length];
+    this.buildMinimap();
   }
 
   // ---------- Mygtukai po pagalba: užduotys ir atsiliepimas ----------
@@ -475,7 +511,7 @@ export class UIScene extends Phaser.Scene {
     const w = 196;
     const h = 92;
     const x0 = VIEW_PX_W - w - 10;
-    const y0 = this.minimapRect.y + this.minimapRect.h + 6;
+    const y0 = this.minimapSmallRect.y + this.minimapSmallRect.h + 6;
     this.clock = this.add.container(x0, y0).setDepth(60);
     this.clock.add(this.add.image(0, 0, ensurePanel(this, 'wood', w, h)).setOrigin(0));
 
@@ -548,9 +584,11 @@ export class UIScene extends Phaser.Scene {
     EventBus.emit(EVENTS.SLEEP_ANSWER, yes);
   }
 
-  // Laukeliai minimape: ruda – sukasta, žalia – auga, geltona – galima nuimti
+  // Laukeliai minimape: ruda – sukasta, žalia – auga, geltona – galima nuimti.
+  // Savo sklypas apvedamas geltonu rėmeliu.
   drawMinimapPlots() {
     if (!this.mmPlots) return;
+    const k = this.mmScale;
     this.mmPlots.clear();
     for (const [key, plot] of Object.entries(this.state.plots)) {
       const [x, y] = key.split(',').map(Number);
@@ -558,7 +596,12 @@ export class UIScene extends Phaser.Scene {
       let color = 0x4a2c17;                // sukasta žemė
       if (plot.crop) color = plot.dead ? 0x8a6a3a : ready ? 0xffe066 : 0x7ed957;
       this.mmPlots.fillStyle(color);
-      this.mmPlots.fillRect(x * MM_SCALE, y * MM_SCALE, MM_SCALE, MM_SCALE);
+      this.mmPlots.fillRect(x * k, y * k, k, k);
+    }
+    const my = getPlotById(this.state.plotId);
+    if (my) {
+      this.mmPlots.lineStyle(1, 0xffe066, 1);
+      this.mmPlots.strokeRect(my.x * k - 0.5, my.y * k - 0.5, WORLD.PLOT_SIZE * k + 1, WORLD.PLOT_SIZE * k + 1);
     }
   }
 
@@ -567,7 +610,7 @@ export class UIScene extends Phaser.Scene {
     this.updateClock();
     const v = this.registry.get('view');
     if (!v || !this.minimap.visible) return;
-    const k = MM_SCALE / T;
+    const k = this.mmScale / T;
     this.mmPlayer.setPosition(v.px * k, v.py * k);
     this.mmView.clear();
     this.mmView.lineStyle(1, 0xffffff, 0.9);

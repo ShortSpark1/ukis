@@ -1,5 +1,5 @@
 import { CONFIG } from '../config.js';
-import { hash2D } from './Random.js';
+import { hash2D } from '../../shared/Random.js';
 
 // =====================================================================
 //  ŽAIDIMO LAIKAS (gryna logika)

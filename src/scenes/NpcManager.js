@@ -1,7 +1,7 @@
 import { CONFIG } from '../config.js';
 import { NPCS } from '../data/npcs.js';
 import { findPath } from '../logic/Pathfinding.js';
-import { isWalkable } from '../logic/WorldMap.js';
+import { isWalkable, PLACES, NPC_HOMES } from '../../shared/WorldMap.js';
 import { availableQuestFor, readyQuestFor } from '../logic/Quests.js';
 import { PLAYER_DIRS, WALK_FRAMES, textStyle } from '../art/SpriteLibrary.js';
 
@@ -14,6 +14,8 @@ const SPEED = CONFIG.NPC_SPEED * T;
 //  kur būti. Kai ateina laikas, NPC suranda kelią (BFS) ir nueina.
 //  Vakare grįžta prie savo durų ir „užeina vidun“ – iki ryto jo nesimato.
 //  NPC vietos neišsaugomos: jos visada apskaičiuojamos iš laiko.
+//  Tvarkaraščiuose vietos nurodytos pavadinimais (PLACES faile
+//  shared/WorldMap.js), o durys – NPC_HOMES.
 // =====================================================================
 export class NpcManager {
   // depthOf(y) – kaip GameScene skaičiuoja objektų gylį pagal Y
@@ -43,15 +45,20 @@ export class NpcManager {
     const label = this.scene.add.text(0, 0, data.name, textStyle(12, '#fff4dc')).setOrigin(0.5, 1).setDepth(textDepth);
     const bubble = this.scene.add.text(0, 0, '', textStyle(22, '#ffd54f')).setOrigin(0.5, 1).setDepth(textDepth);
     this.scene.tweens.add({ targets: bubble, scale: 1.2, duration: 450, yoyo: true, repeat: -1 });
-    return { id, data, key, sprite, shadow, label, bubble, path: null, goalKey: null, goingHome: false, hidden: false, facing: 'down' };
+    const door = NPC_HOMES[id];
+    if (!door) console.warn(`[NPC] ${data.name}: nėra namų vietos NPC_HOMES (shared/WorldMap.js)!`);
+    return { id, data, key, door, sprite, shadow, label, bubble, path: null, goalKey: null, goingHome: false, hidden: false, facing: 'down' };
   }
 
   // Įspėja konsolėje, jei duomenų faile nurodyta vieta, į kurią nueiti negalima
   validateSchedules() {
     for (const npc of this.npcs) {
       for (const s of npc.data.schedule) {
-        if (s.at && !isWalkable(this.map, s.at.x, s.at.y)) {
-          console.warn(`[NPC] ${npc.data.name}: vieta (${s.at.x}, ${s.at.y}) ${s.hour} val. – nepraeinama!`);
+        if (!s.at) continue;
+        const p = PLACES[s.at];
+        if (!p) console.warn(`[NPC] ${npc.data.name}: nežinoma vieta „${s.at}“ ${s.hour} val. (žr. PLACES)!`);
+        else if (!isWalkable(this.map, p.x, p.y)) {
+          console.warn(`[NPC] ${npc.data.name}: vieta „${s.at}“ (${p.x}, ${p.y}) ${s.hour} val. – nepraeinama!`);
         }
       }
     }
@@ -62,7 +69,9 @@ export class NpcManager {
     const hour = minutes / 60;
     let goal = { home: true }; // anksti ryte – dar namie
     for (const entry of npc.data.schedule) {
-      if (entry.hour <= hour) goal = entry;
+      if (entry.hour > hour) continue;
+      // Nežinoma vieta – NPC lieka namie (įspėjimas – konsolėje)
+      goal = entry.home || !PLACES[entry.at] ? { home: true } : { at: PLACES[entry.at] };
     }
     return goal;
   }
@@ -92,7 +101,7 @@ export class NpcManager {
       npc.path = null;
       npc.goalKey = goal.home ? 'home' : `${goal.at.x},${goal.at.y}`;
       npc.goingHome = false;
-      this.setPos(npc, this.tileToPos(goal.home ? npc.data.home.door : goal.at));
+      this.setPos(npc, this.tileToPos(goal.home ? npc.door : goal.at));
       this.setHidden(npc, !!goal.home);
       npc.facing = 'down';
       npc.sprite.anims.stop();
@@ -112,10 +121,10 @@ export class NpcManager {
         npc.goalKey = goalKey;
         if (npc.hidden && !goal.home) {
           // ryte išeina pro duris
-          this.setPos(npc, this.tileToPos(npc.data.home.door));
+          this.setPos(npc, this.tileToPos(npc.door));
           this.setHidden(npc, false);
         }
-        const target = goal.home ? npc.data.home.door : goal.at;
+        const target = goal.home ? npc.door : goal.at;
         const from = this.tileOf(npc);
         npc.path = findPath(this.map, from, (x, y) => x === target.x && y === target.y) ?? [];
         npc.goingHome = !!goal.home;

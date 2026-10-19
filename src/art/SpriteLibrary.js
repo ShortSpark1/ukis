@@ -3,9 +3,9 @@ import { CONFIG } from '../config.js';
 // įskiepis faile vite.config.js). Jei aplanko nėra – tuščias masyvas.
 import userAssets from 'virtual:user-assets';
 import {
-  makeTerrain, GRASS_VARIANTS, DIRT_VARIANTS, FLOWER_VARIANTS, WATER_FRAMES, PATH_VARIANTS, fenceFrameName,
+  makeTerrain, GRASS_VARIANTS, DIRT_VARIANTS, FLOWER_VARIANTS, WATER_FRAMES, PATH_VARIANTS, PLAZA_VARIANTS, fenceFrameName,
 } from './terrain.js';
-import { makeObjects, TREE_VARIANTS, TREE_ORIGIN_Y } from './objects.js';
+import { makeObjects, TREE_VARIANTS, TREE_ORIGIN_Y, FOUNTAIN_TOP_Y } from './objects.js';
 import { makePlayer, makeCharacter, PLAYER_DIRS, WALK_FRAMES, PLAYER_FRAME_W, PLAYER_FRAME_H } from './characters.js';
 import { NPCS } from '../data/npcs.js';
 import { makeCrops } from './crops.js';
@@ -27,8 +27,8 @@ import { SEASON_KEYS, sk } from './seasons.js';
 // =====================================================================
 
 export {
-  GRASS_VARIANTS, DIRT_VARIANTS, FLOWER_VARIANTS, WATER_FRAMES, PATH_VARIANTS, TREE_VARIANTS,
-  TREE_ORIGIN_Y, PLAYER_DIRS, WALK_FRAMES, fenceFrameName, ensurePanel, textStyle, FONT_FAMILY,
+  GRASS_VARIANTS, DIRT_VARIANTS, FLOWER_VARIANTS, WATER_FRAMES, PATH_VARIANTS, PLAZA_VARIANTS, TREE_VARIANTS,
+  TREE_ORIGIN_Y, FOUNTAIN_TOP_Y, PLAYER_DIRS, WALK_FRAMES, fenceFrameName, ensurePanel, textStyle, FONT_FAMILY,
   SEASON_KEYS, sk,
 };
 export const PLAYER_FRAME = { w: PLAYER_FRAME_W, h: PLAYER_FRAME_H };
@@ -54,6 +54,7 @@ function buildOverrideList() {
     { file: 'grass.png', seasonal: true, names: range(GRASS_VARIANTS, (i) => `grass_${i}`), base: '16x16' },
     { file: 'dirt.png', seasonal: true, names: range(DIRT_VARIANTS, (i) => `dirt_${i}`), base: '16x16' },
     { file: 'path.png', seasonal: true, names: range(PATH_VARIANTS, (i) => `path_${i}`), base: '16x16' },
+    { file: 'plaza.png', seasonal: true, names: range(PLAZA_VARIANTS, (i) => `plaza_${i}`), base: '16x16' },
     { file: 'soil.png', names: ['soil_dry', 'soil_wet'], base: '16x16' },
     { file: 'flowers.png', seasonal: true, names: range(FLOWER_VARIANTS, (i) => `flowers_${i}`), base: '16x16' },
     { file: 'water.png', sheet: 'water', names: range(WATER_FRAMES, (i) => `w${i}`), base: '16x16' },
@@ -66,6 +67,8 @@ function buildOverrideList() {
     { file: 'rock.png', names: ['rock'], base: '16x16' },
     { file: 'shop.png', names: ['shop'], base: '32x46' },
     { file: 'house.png', names: ['house'], base: '32x46' },
+    { file: 'fountain.png', names: ['fountain'], base: '64x70' },
+    { file: 'board.png', names: ['board'], base: '32x32' },
     { file: 'crop_dead.png', names: ['crop_dead'], base: '16x24' },
     {
       file: 'player.png', sheet: 'player', cols: WALK_FRAMES,

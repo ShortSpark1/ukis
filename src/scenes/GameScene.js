@@ -2,9 +2,9 @@ import Phaser from 'phaser';
 import { CONFIG } from '../config.js';
 import { EventBus, EVENTS } from '../EventBus.js';
 import {
-  createWorldMap, getTile, getGround, isBlocked, isInside, findShop, isNearShop, isNearHouse,
-  TILE, START_TILE, HOUSE_POS, HOUSE_DOOR, COTTAGES,
-} from '../logic/WorldMap.js';
+  createWorldMap, getTile, isBlocked, isInside, isNearShop, plotAt, getPlotById, isNearPlotHouse,
+  TILE, SHOP_POS, COTTAGES, PLOTS,
+} from '../../shared/WorldMap.js';
 import { createNewState } from '../logic/GameState.js';
 import { getHotbarItems, getItemInfo, hasItem, HOTBAR_SIZE } from '../logic/Inventory.js';
 import {
@@ -20,11 +20,9 @@ import { endDay } from '../logic/DayCycle.js';
 import { onHarvest } from '../logic/Quests.js';
 import { hasEnergy, spendEnergy } from '../logic/Energy.js';
 // Visa grafika – tik iš SpriteLibrary (žr. src/art/SpriteLibrary.js)
-import {
-  GRASS_VARIANTS, DIRT_VARIANTS, FLOWER_VARIANTS, WATER_FRAMES, PATH_VARIANTS, TREE_VARIANTS,
-  TREE_ORIGIN_Y, PLAYER_DIRS, WALK_FRAMES, PLAYER_FRAME, fenceFrameName, textStyle, sk,
-} from '../art/SpriteLibrary.js';
+import { WATER_FRAMES, PLAYER_DIRS, WALK_FRAMES, PLAYER_FRAME, textStyle } from '../art/SpriteLibrary.js';
 import { Environment } from './Environment.js';
+import { ChunkRenderer, tileHash as hash } from './ChunkRenderer.js';
 import { NpcManager } from './NpcManager.js';
 import { SKIP_TITLE_KEY } from './TitleScene.js';
 import { DialogController } from './DialogController.js';
@@ -44,25 +42,21 @@ const DEPTH = {
 };
 const ySort = (y) => DEPTH.OBJECTS + y;
 
+// Debesys juda plote aplink kamerą (didesniame už ekraną, kad persikėlimas nesimatytų)
+const CLOUD_COUNT = 8;
+const CLOUD_AREA_W = VIEW_PX_W + 900;
+const CLOUD_AREA_H = VIEW_PX_H + 900;
+
 const DIRECTIONS = {
   up: { dx: 0, dy: -1 },
   down: { dx: 0, dy: 1 },
   left: { dx: -1, dy: 0 },
   right: { dx: 1, dy: 0 },
 };
-const SIDES = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
-const CORNERS = { nw: [-1, -1], ne: [1, -1], se: [1, 1], sw: [-1, 1] };
 
 const GOOD = '#fff4dc';
 const BAD = '#ffb3a8';
 const NEWS = '#fff59d';
-
-// Pastovus „atsitiktinis“ skaičius kiekvienam langeliui (variantams parinkti)
-function hash(x, y) {
-  let h = (x * 374761393 + y * 668265263) | 0;
-  h = Math.imul(h ^ (h >>> 13), 1274126177);
-  return (h ^ (h >>> 16)) >>> 0;
-}
 
 // =====================================================================
 //  ŽAIDIMO SCENA
@@ -87,14 +81,17 @@ export class GameScene extends Phaser.Scene {
     this.registry.set('state', this.state);
     this.registry.set('map', this.map);
     this.season = getSeason(this.state);
+    // Žaidėjo ūkio sklypas (kol nėra serverio – CONFIG.DEFAULT_PLOT_ID)
+    this.myPlot = getPlotById(this.state.plotId);
 
     this.createAnimations();
-    this.drawMap();
-    this.bakeGround(this.season);
+    this.createWorld();
     this.createPlayer();
     this.createInput();
     this.createEffects();
     this.setupCamera();
+    // Iškart nupiešiame chunk'us aplink personažą
+    this.chunks.update(this.player.x, this.player.y, true);
 
     // Diena / naktis, šviesos ir oras
     this.env = new Environment(this, { night: DEPTH.NIGHT, lights: DEPTH.LIGHTS, weather: DEPTH.WEATHER });
@@ -188,164 +185,54 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ---------- Žemėlapis ----------
-  // Objektai (vanduo, medžiai, tvoros, pastatai) sukuriami vieną kartą.
-  // Sezoniniai objektai (medžiai, krūmai) įsimenami, kad pasikeitus
-  // sezonui galėtume pakeisti jų piešinį.
-  drawMap() {
+  // Pasaulis piešiamas chunk'ais (žr. ChunkRenderer.js): tik matoma dalis.
+  // Čia – tai, kas reikalinga visam pasauliui: kliūčių grupė, šviesos
+  // pastatų languose naktį ir užuominos prie parduotuvės bei namelio.
+  createWorld() {
     this.blockers = this.physics.add.staticGroup();
-    this.seasonalObjects = [];
+    this.chunks = new ChunkRenderer(this, this.map, {
+      depths: { ground: DEPTH.GROUND, edge: DEPTH.EDGE },
+      ySort,
+      blockers: this.blockers,
+      season: this.season,
+    });
 
-    for (let y = 0; y < CONFIG.MAP_HEIGHT; y++) {
-      for (let x = 0; x < CONFIG.MAP_WIDTH; x++) {
-        const type = getTile(this.map, x, y);
-        const h = hash(x, y);
-        const px = x * T;
-        const py = y * T;
-
-        // Vanduo animuotas, todėl lieka atskiru sprite'u po „iškepta“ žeme
-        if (getGround(type) === TILE.WATER) {
-          this.add.sprite(px, py, 'water', 'w0').setOrigin(0).setDepth(DEPTH.GROUND).play('water_anim');
-        }
-
-        if (type === TILE.TREE) {
-          const base = `tree_${h % TREE_VARIANTS}`;
-          const img = this.add.image(px + T / 2, py + T - 4, sk(base, this.season))
-            .setOrigin(0.5, TREE_ORIGIN_Y) // kamieno apačia
-            .setDepth(ySort(py + T - 6));
-          this.seasonalObjects.push({ img, base });
-        } else if (type === TILE.BUSH) {
-          const img = this.add.image(px + T / 2, py + T, sk('bush', this.season)).setOrigin(0.5, 1).setDepth(ySort(py + T - 8));
-          this.seasonalObjects.push({ img, base: 'bush' });
-        } else if (type === TILE.FENCE) {
-          // Tvoros kadras priklauso nuo to, kuriose pusėse yra kitos tvoros
-          const isFence = (dx, dy) => getTile(this.map, x + dx, y + dy) === TILE.FENCE;
-          const mask = (isFence(0, -1) ? 1 : 0) | (isFence(1, 0) ? 2 : 0) | (isFence(0, 1) ? 4 : 0) | (isFence(-1, 0) ? 8 : 0);
-          this.add.image(px, py, 'fence', fenceFrameName(mask)).setOrigin(0).setDepth(ySort(py + T - 6));
-        } else if (type === TILE.ROCK) {
-          this.add.image(px + T / 2, py + T, 'rock').setOrigin(0.5, 1).setDepth(ySort(py + T - 8));
-        }
-
-        if (isBlocked(type)) {
-          this.blockers.add(this.add.zone(px + T / 2, py + T / 2, T, T));
-        }
-      }
-    }
-
-    // Pastatai (2x2 langeliai, stogas kyla aukščiau) ir jų šviesos naktį
+    // Pastatų langų šviesos naktį. Piešinio aukštis reikalingas, kad
+    // žinotume, kur ant jo yra langai (dizaino vienetais).
     this.buildingLights = [];
-    this.shopPos = findShop(this.map);
-    if (this.shopPos) {
-      const sx = this.shopPos.x * T;
-      const sy = (this.shopPos.y + 2) * T;
-      const shop = this.add.image(sx, sy, 'shop').setOrigin(0, 1).setDepth(ySort(sy - 4));
-      const top = sy - shop.height;
-      // langų ir durų vietos parduotuvės piešinyje (dizaino vienetais)
-      for (const [dx, dy, r] of [[15.6, 59, 95], [49.6, 59, 95], [32, 70, 80]]) {
-        this.buildingLights.push({ x: sx + dx * S, y: top + dy * S, r });
-      }
-      this.shopHint = this.add
-        .text(sx + T, sy + 6, 'Spausk ant namo arba E', textStyle(13, NEWS))
-        .setOrigin(0.5, 0).setDepth(DEPTH.TEXT).setVisible(false);
-    }
+    const addLights = (key, tileX, tileY, spots) => {
+      const bottom = (tileY + 2) * T;
+      const top = bottom - this.textures.getFrame(key).height;
+      for (const [dx, dy, r] of spots) this.buildingLights.push({ x: tileX * T + dx * S, y: top + dy * S, r });
+    };
+    this.shopPos = SHOP_POS;
+    addLights('shop', SHOP_POS.x, SHOP_POS.y, [[15.6, 59, 95], [49.6, 59, 95], [32, 70, 80]]);
+    for (const plot of PLOTS) addLights('house', plot.house.x, plot.house.y, [[16.5, 62, 100], [48.5, 62, 100], [32, 34, 70]]);
+    for (const c of COTTAGES) addLights(`cottage_${c.npcId}`, c.x, c.y, [[16.5, 62, 90], [48.5, 62, 90]]);
 
-    const hx = HOUSE_POS.x * T;
-    const hy = (HOUSE_POS.y + 2) * T;
-    const house = this.add.image(hx, hy, 'house').setOrigin(0, 1).setDepth(ySort(hy - 4));
-    const htop = hy - house.height;
-    for (const [dx, dy, r] of [[16.5, 62, 100], [48.5, 62, 100], [32, 34, 70]]) {
-      this.buildingLights.push({ x: hx + dx * S, y: htop + dy * S, r });
-    }
-    // Kaimynų nameliai (iš src/data/npcs.js) ir jų langų šviesos naktį
-    for (const c of COTTAGES) {
-      const cx = c.x * T;
-      const cy = (c.y + 2) * T;
-      const img = this.add.image(cx, cy, `cottage_${c.npcId}`).setOrigin(0, 1).setDepth(ySort(cy - 4));
-      const top = cy - img.height;
-      for (const [dx, dy, r] of [[16.5, 62, 90], [48.5, 62, 90]]) {
-        this.buildingLights.push({ x: cx + dx * S, y: top + dy * S, r });
-      }
-    }
-
-    this.houseHint = this.add
-      .text(hx + T, hy + 6, 'Namelis: spausk ant jo arba E – miegoti', textStyle(13, NEWS))
+    const sx = SHOP_POS.x * T;
+    const sy = (SHOP_POS.y + 2) * T;
+    this.shopHint = this.add
+      .text(sx + T, sy + 6, 'Spausk ant namo arba E', textStyle(13, NEWS))
       .setOrigin(0.5, 0).setDepth(DEPTH.TEXT).setVisible(false);
+    const hx = this.myPlot.house.x * T;
+    const hy = (this.myPlot.house.y + 2) * T;
+    this.houseHint = this.add
+      .text(hx + T, hy + 6, 'Tavo namelis: spausk ant jo arba E – miegoti', textStyle(13, NEWS))
+      .setOrigin(0.5, 0).setDepth(DEPTH.TEXT).setVisible(false);
+    // Užrašas virš savo sklypo vartų
+    const gate = this.myPlot.gate;
+    this.add.text(gate.x * T + T / 2, gate.y * T - 4, 'Tavo ūkis', textStyle(14, '#ffe7a3'))
+      .setOrigin(0.5, 1).setDepth(DEPTH.TEXT - 1);
 
     // Fizikos pasaulio ribos = viso pasaulio dydis (už krašto išeiti negalima)
     this.physics.world.setBounds(0, 0, WORLD_PX_W, WORLD_PX_H);
   }
 
-  // Nejudančią žemę (žolę, dirvą, takus, kraštus, gėles, tiltus) „iškepame“
-  // į VIENĄ didelį paveikslėlį (DynamicTexture) – taip žaidimas veikia greitai.
-  // Pasikeitus sezonui, iškepame iš naujo su to sezono piešiniais.
-  bakeGround(season) {
-    let ground = this.textures.get('world_ground');
-    if (!this.textures.exists('world_ground')) {
-      ground = this.textures.addDynamicTexture('world_ground', WORLD_PX_W, WORLD_PX_H);
-      this.add.image(0, 0, 'world_ground').setOrigin(0).setDepth(DEPTH.EDGE);
-    }
-    ground.clear();
-    ground.beginDraw();
-    const stamp = (key, px, py) => ground.batchDrawFrame(key, undefined, px, py);
-    const waterOrOutside = (x, y) => {
-      const t = getTile(this.map, x, y);
-      return t === null || getGround(t) === TILE.WATER;
-    };
-
-    for (let y = 0; y < CONFIG.MAP_HEIGHT; y++) {
-      for (let x = 0; x < CONFIG.MAP_WIDTH; x++) {
-        const type = getTile(this.map, x, y);
-        const gnd = getGround(type);
-        const h = hash(x, y);
-        const px = x * T;
-        const py = y * T;
-
-        if (gnd === TILE.WATER) {
-          // Krantas toje pusėje, kur prasideda žemė
-          for (const [dir, [dx, dy]] of Object.entries(SIDES)) {
-            const n = getTile(this.map, x + dx, y + dy);
-            if (n !== null && getGround(n) !== TILE.WATER) stamp(`shore_${dir}`, px, py);
-          }
-          // Vidiniai kampai: žemė tik įstrižai
-          for (const [dir, [dx, dy]] of Object.entries(CORNERS)) {
-            if (!waterOrOutside(x + dx, y + dy) && waterOrOutside(x + dx, y) && waterOrOutside(x, y + dy)) {
-              stamp(`shore_inner_${dir}`, px, py);
-            }
-          }
-          // Tiltas: lentos guldomos skersai ėjimo krypties
-          if (type === TILE.BRIDGE) {
-            const horizontal = [getTile(this.map, x - 1, y), getTile(this.map, x + 1, y)]
-              .some((n) => n === TILE.PATH || n === TILE.BRIDGE);
-            stamp(horizontal ? 'bridge_h' : 'bridge_v', px, py);
-            // turėklai tik ten, kur tiltas baigiasi (ne tarp dviejų tilto eilių)
-            for (const dir of horizontal ? ['n', 's'] : ['e', 'w']) {
-              const [dx, dy] = SIDES[dir];
-              if (getTile(this.map, x + dx, y + dy) !== TILE.BRIDGE) stamp(`bridge_rail_${dir}`, px, py);
-            }
-          }
-        } else {
-          let base = `grass_${h % GRASS_VARIANTS}`;
-          if (gnd === TILE.DIRT) base = `dirt_${h % DIRT_VARIANTS}`;
-          if (gnd === TILE.PATH) base = `path_${h % PATH_VARIANTS}`;
-          stamp(sk(base, season), px, py);
-          // Žolės kraštas ant dirvos ir takų
-          if (gnd !== TILE.GRASS) {
-            for (const [dir, [dx, dy]] of Object.entries(SIDES)) {
-              const n = getTile(this.map, x + dx, y + dy);
-              if (n !== null && getGround(n) === TILE.GRASS) stamp(sk(`dirtedge_${dir}`, season), px, py);
-            }
-          }
-        }
-        if (type === TILE.FLOWERS) stamp(sk(`flowers_${h % FLOWER_VARIANTS}`, season), px, py);
-      }
-    }
-    ground.endDraw();
-  }
-
   // Pasikeitus sezonui – nauja žemė ir medžių / krūmų piešiniai
   applySeasonVisuals(season) {
     this.season = season;
-    this.bakeGround(season);
-    for (const o of this.seasonalObjects) o.img.setTexture(sk(o.base, season));
+    this.chunks.setSeason(season);
   }
 
   // ---------- Personažas ----------
@@ -353,7 +240,7 @@ export class GameScene extends Phaser.Scene {
     // Išsaugota vieta laikoma langelių vienetais, kad nepriklausytų nuo langelio dydžio
     const pos = this.state.player
       ? { x: this.state.player.x * T, y: this.state.player.y * T }
-      : this.tileToPlayerPos(START_TILE);
+      : this.tileToPlayerPos(this.myPlot.door); // naujas žaidimas – prie savo namelio
 
     this.playerShadow = this.add.image(pos.x, pos.y, 'shadow');
     this.player = this.physics.add.sprite(pos.x, pos.y, 'player', 'down_0');
@@ -473,11 +360,14 @@ export class GameScene extends Phaser.Scene {
     };
     Object.values(this.fx).forEach((e) => e.setDepth(DEPTH.FX));
 
-    // Lėtai slenkantys debesų šešėliai, išbarstyti po visą pasaulį
-    const count = Math.ceil((WORLD_PX_W * WORLD_PX_H) / (VIEW_PX_W * VIEW_PX_H)) * 2;
-    this.clouds = Array.from({ length: count }, () =>
-      this.add.image(Phaser.Math.Between(0, WORLD_PX_W), Phaser.Math.Between(0, WORLD_PX_H), 'cloud')
-        .setAlpha(0.14).setScale(1.5).setDepth(DEPTH.CLOUDS),
+    // Lėtai slenkantys debesų šešėliai. Pasaulis didelis, todėl debesų
+    // nedaug – jie „keliauja“ kartu su kamera (žr. moveClouds).
+    this.clouds = Array.from({ length: CLOUD_COUNT }, () =>
+      this.add.image(
+        this.player.x + Phaser.Math.Between(-CLOUD_AREA_W / 2, CLOUD_AREA_W / 2),
+        this.player.y + Phaser.Math.Between(-CLOUD_AREA_H / 2, CLOUD_AREA_H / 2),
+        'cloud',
+      ).setAlpha(0.14).setScale(1.5).setDepth(DEPTH.CLOUDS),
     );
 
     // Vinjetė – tamsesni ekrano kraštai. setScrollFactor(0): „priklijuota“
@@ -517,6 +407,9 @@ export class GameScene extends Phaser.Scene {
 
   // ---------- Kiekvienas kadras ----------
   update(time, delta) {
+    // Chunk'ai aplink kamerą (sukuriami / ištrinami pagal poreikį)
+    const view = this.cameras.main.worldView;
+    if (view.width > 0) this.chunks.update(view.centerX, view.centerY);
     this.moveClouds(delta);
 
     // Laikas eina tik tada, kai neatidarytas joks langas
@@ -560,7 +453,7 @@ export class GameScene extends Phaser.Scene {
 
     const p = this.getPlayerTile();
     this.shopHint?.setVisible(isNearShop(this.map, p.x, p.y));
-    this.houseHint.setVisible(isNearHouse(this.map, p.x, p.y));
+    this.houseHint.setVisible(isNearPlotHouse(this.myPlot, p.x, p.y));
     // Šalia kaimyno – užuomina „E – kalbėti“ virš jo galvos
     const npc = this.npcs.nearest(this.player.x, this.player.y);
     this.talkHint.setVisible(!!npc);
@@ -574,13 +467,18 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // Debesys juda į rytus. Išplaukęs už ploto aplink kamerą debesis
+  // perkeliamas į kitą pusę – taip keli debesys dengia visą pasaulį.
   moveClouds(delta) {
+    const cam = this.cameras.main;
+    const left = cam.scrollX + VIEW_PX_W / 2 - CLOUD_AREA_W / 2;
+    const top = cam.scrollY + VIEW_PX_H / 2 - CLOUD_AREA_H / 2;
     for (const c of this.clouds) {
       c.x += delta * 0.012;
-      if (c.x - c.displayWidth / 2 > WORLD_PX_W) {
-        c.x = -c.displayWidth / 2;
-        c.y = Phaser.Math.Between(0, WORLD_PX_H);
-      }
+      if (c.x < left) c.x += CLOUD_AREA_W;
+      else if (c.x > left + CLOUD_AREA_W) c.x -= CLOUD_AREA_W;
+      if (c.y < top) c.y += CLOUD_AREA_H;
+      else if (c.y > top + CLOUD_AREA_H) c.y -= CLOUD_AREA_H;
     }
   }
 
@@ -647,7 +545,7 @@ export class GameScene extends Phaser.Scene {
     }
     const type = getTile(this.map, t.x, t.y);
     let tint = 0xffffff;
-    if (type === TILE.SHOP || type === TILE.HOUSE) tint = 0xffe066; // pastatai
+    if (type === TILE.SHOP || this.isMyHouseTile(t.x, t.y)) tint = 0xffe066; // parduotuvė, savo namelis
     else if (this.previewAt(t.x, t.y)) tint = 0x9cff7a;            // galima atlikti veiksmą
     else if (isBlocked(type)) tint = 0xff8a80;                     // nepraeinama
     this.cursor.setVisible(true).setPosition(t.x * T, t.y * T).setTint(tint);
@@ -690,13 +588,15 @@ export class GameScene extends Phaser.Scene {
       }
       return;
     }
-    // Paspaudė ant namelio – nueiname prie durų ir siūlome miegoti
+    // Paspaudė ant savo namelio – nueiname prie durų ir siūlome miegoti
     if (!moveOnly && type === TILE.HOUSE) {
-      if (isNearHouse(this.map, me.x, me.y)) {
+      if (!this.isMyHouseTile(target.x, target.y)) {
+        this.toast(`Tai ${plotAt(target.x, target.y)?.id ?? ''} sklypo namelis. Tavo – sklype ${this.myPlot.id}.`, BAD);
+      } else if (isNearPlotHouse(this.myPlot, me.x, me.y)) {
         this.stopWalking();
         this.askToSleep();
       } else {
-        this.walk(pathToTile(this.map, me, HOUSE_DOOR), { type: 'sleep' }, target);
+        this.walk(pathToTile(this.map, me, this.myPlot.door), { type: 'sleep' }, target);
       }
       return;
     }
@@ -789,7 +689,7 @@ export class GameScene extends Phaser.Scene {
       if (npc && !npc.hidden && this.npcs.nearest(this.player.x, this.player.y) === npc) this.talkTo(npc);
       else this.toast('Kaimynas jau nuėjo. Pabandyk dar kartą.', BAD);
     } else if (action.type === 'sleep') {
-      this.faceToward({ x: HOUSE_DOOR.x, y: HOUSE_POS.y });
+      this.faceToward({ x: this.myPlot.door.x, y: this.myPlot.house.y });
       this.askToSleep();
     }
   }
@@ -931,8 +831,8 @@ export class GameScene extends Phaser.Scene {
     const p = this.getPlayerTile();
     if (npc) this.talkTo(npc);
     else if (isNearShop(this.map, p.x, p.y)) this.openShop();
-    else if (isNearHouse(this.map, p.x, p.y)) this.askToSleep();
-    else this.toast('Prieik prie kaimyno, parduotuvės ar namelio (arba spausk ant jų pele).', BAD);
+    else if (isNearPlotHouse(this.myPlot, p.x, p.y)) this.askToSleep();
+    else this.toast('Prieik prie kaimyno, parduotuvės ar savo namelio (arba spausk ant jų pele).', BAD);
   }
 
   // ---------- Pokalbiai ----------
@@ -988,11 +888,12 @@ export class GameScene extends Phaser.Scene {
       const summary = endDay(this.state, fainted);
       if (summary.season !== this.season) this.applySeasonVisuals(summary.season);
 
-      // Atsibundame prie namelio durų
-      const pos = this.tileToPlayerPos(HOUSE_DOOR);
+      // Atsibundame prie savo namelio durų
+      const pos = this.tileToPlayerPos(this.myPlot.door);
       this.player.body.reset(pos.x, pos.y);
       this.facing = 'down';
       cam.centerOn(pos.x, pos.y);
+      this.chunks.update(pos.x, pos.y, true);
 
       this.npcs.placeAll(this.state.time.minutes);
       this.refreshAllPlots();
@@ -1127,6 +1028,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   // ---------- Pagalbinės ----------
+  // Ar langelis – žaidėjo (ne kito sklypo) namelio dalis?
+  isMyHouseTile(x, y) {
+    const h = this.myPlot.house;
+    return x >= h.x && x < h.x + 2 && y >= h.y && y < h.y + 2;
+  }
+
   toast(text, color = GOOD, duration) {
     EventBus.emit(EVENTS.TOAST, text, color, duration);
   }

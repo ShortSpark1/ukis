@@ -39,5 +39,9 @@ export function showMobileNotice() {
       color: #fff; background: #5aa543; border: 2px solid #1f3b12; border-radius: 8px; }`;
   document.head.appendChild(style);
   document.body.appendChild(box);
+  // Paspaudimai ant pranešimo neturi pasiekti žaidimo (Phaser klausosi viso lango)
+  for (const type of ['pointerdown', 'mousedown', 'touchstart', 'pointerup', 'mouseup', 'touchend']) {
+    box.addEventListener(type, (e) => e.stopPropagation());
+  }
   box.querySelector('button').addEventListener('click', () => box.remove());
 }

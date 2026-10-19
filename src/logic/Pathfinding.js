@@ -1,4 +1,4 @@
-import { isWalkable } from './WorldMap.js';
+import { isWalkable } from '../../shared/WorldMap.js';
 
 // =====================================================================
 //  KELIO PAIEŠKA (gryna logika)
@@ -14,33 +14,38 @@ const STEPS = [
 // Grąžina langelių masyvą nuo pirmo žingsnio iki tikslo (be pradžios).
 // [] – jau esame tiksle, null – kelio nėra.
 // isGoal(x, y) – funkcija, kuri pasako, ar langelis tinka tikslui.
-export function findPath(map, start, isGoal, maxNodes = 20000) {
+// maxNodes – kiek daugiausia langelių patikrinti (numatyta – visas pasaulis).
+//
+// Greičiui (pasaulis – 40 000 langelių) langelius žymime skaičiais
+// (y * plotis + x), o „iš kur atėjome“ laikome skaičių masyve.
+export function findPath(map, start, isGoal, maxNodes = Infinity) {
   if (isGoal(start.x, start.y)) return [];
 
-  const key = (x, y) => `${x},${y}`;
-  const cameFrom = new Map([[key(start.x, start.y), null]]);
-  const queue = [start];
+  const w = map[0].length;
+  const cameFrom = new Int32Array(w * map.length).fill(-1);
+  const startId = start.y * w + start.x;
+  cameFrom[startId] = startId;
+  const queue = [startId];
 
-  while (queue.length && cameFrom.size < maxNodes) {
-    const cur = queue.shift();
+  for (let head = 0; head < queue.length && head < maxNodes; head++) {
+    const cur = queue[head];
+    const cx = cur % w;
+    const cy = (cur - cx) / w;
     for (const { dx, dy } of STEPS) {
-      const nx = cur.x + dx;
-      const ny = cur.y + dy;
-      const k = key(nx, ny);
-      if (cameFrom.has(k) || !isWalkable(map, nx, ny)) continue;
-      cameFrom.set(k, cur);
+      const nx = cx + dx;
+      const ny = cy + dy;
+      if (!isWalkable(map, nx, ny)) continue;
+      const id = ny * w + nx;
+      if (cameFrom[id] !== -1) continue;
+      cameFrom[id] = cur;
 
       if (isGoal(nx, ny)) {
         // Atsekame kelią atgal iki pradžios
-        const path = [{ x: nx, y: ny }];
-        let prev = cur;
-        while (prev && !(prev.x === start.x && prev.y === start.y)) {
-          path.unshift(prev);
-          prev = cameFrom.get(key(prev.x, prev.y));
-        }
-        return path;
+        const path = [];
+        for (let p = id; p !== startId; p = cameFrom[p]) path.push({ x: p % w, y: Math.floor(p / w) });
+        return path.reverse();
       }
-      queue.push({ x: nx, y: ny });
+      queue.push(id);
     }
   }
   return null;

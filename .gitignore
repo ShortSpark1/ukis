@@ -6,3 +6,6 @@ dist
 .DS_Store
 Thumbs.db
 *.log
+
+# Claude Code nustatymai (tik šiam kompiuteriui)
+.claude/

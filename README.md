@@ -7,7 +7,7 @@ piešiama kodu naršyklės Canvas 2D API su gradientais ir šešėliais, todėl 
 paveikslėlių failų nereikia. Jei nori, gali įdėti savo sprite'us (pvz. Kenney paketą)
 į `public/assets/`, ir žaidimas naudos juos.
 
-Tolesnių darbų planas – [PLANAS_2.md](PLANAS_2.md).
+Tolesnių darbų planas – [PLANAS_2.md](PLANAS_2.md) (padarytas) ir [PLANAS_3.md](PLANAS_3.md) (multiplayer, daroma etapais).
 Kaip paskelbti žaidimą internete – [SKELBIMAS.md](SKELBIMAS.md).
 
 ## Kaip paleisti
@@ -71,26 +71,35 @@ mygtukai **„Tęsti“** (jei yra išsaugotas žaidimas; po juo matosi diena, l
 | K | Išsaugoti rankiniu būdu (žaidimas ir taip saugomas kas 10 s) |
 | N | Pradėti naują žaidimą |
 | H | Paslėpti / parodyti pagalbą |
-| M | Paslėpti / parodyti minimapą |
-| Paspausti minimape | Nueiti į tą pasaulio vietą |
+| M | Žemėlapis: mažas kampe → didelis ekrano viduryje → paslėptas |
+| Paspausti žemėlapyje | Nueiti į tą pasaulio vietą |
 
 Taikiklio (kampuoto rėmelio) spalva parodo, kas nutiks paspaudus:
-**žalia** – galima atlikti veiksmą, **geltona** – parduotuvė ar namelis, **raudona** – nepraeinama, **balta** – tiesiog nueisi.
+**žalia** – galima atlikti veiksmą, **geltona** – parduotuvė ar tavo namelis, **raudona** – nepraeinama, **balta** – tiesiog nueisi.
 
-**Pasaulis** yra 60×45 langelių (ekrane matosi 20×15), o kamera seka personažą. Ūkis yra
-centre, jį juosia tvora su vartais į visas puses. Į rytus nuo jo stovi parduotuvė, šiaurės rytuose tyvuliuoja ežeras, iš kurio į pietus
-teka upė su tiltu. Į šiaurę nuo ūkio stovi **tavo namelis** su lova. Vakaruose ir aplink kraštus
-auga miškas, o zonas jungia takai. Dešiniajame viršutiniame kampe yra minimapas: raudonas taškas
-rodo tave, baltas rėmelis – matomą plotą. Po juo – laikrodis, sezonas, oras ir energija.
+**Pasaulis** yra 200×200 langelių (ekrane matosi 20×15), o kamera seka personažą.
+
+- **Miestas centre:** grįsta aikštė su fontanu ir skelbimų lenta, parduotuvė ir kaimynų nameliai.
+- **Ūkių zona aplink miestą:** 24 vienodi sklypai po 20×20 langelių. Kiekvienas sklypas turi
+  tvorą su vartais, namelį su lova ir dirvą. Sklypai sugrupuoti po 4, tarp jų eina takai.
+- **Tavo ūkis** – sklypas 10, iškart į vakarus nuo miesto (virš vartų užrašas „Tavo ūkis“).
+  Kasti ir sodinti galima tik savo sklype, miegoti – tik savo namelyje. Kol kas (1 etapas)
+  kiti sklypai tušti, bet juos jau galima apžiūrėti.
+- **Gamta tarp zonų:** giraitės, ežeras šiaurėje, tvenkinys pietuose. Už žiedinio kelio – tankus
+  miškas ir upė, per kurią keliai eina **tiltais**.
+
+Dešiniajame viršutiniame kampe yra žemėlapis: raudonas taškas rodo tave, baltas rėmelis –
+matomą plotą, geltonas – tavo sklypą. Paspaudus **M** jis padidėja per visą ekraną. Po žemėlapiu –
+laikrodis, sezonas, oras ir energija.
 
 **Kaimynai.** Kaime gyvena keturi kaimynai:
 
 | Kaimynas | Kas jis | Kur jį rasti |
 |---|---|---|
-| Ona | parduotuvininkė | ryte ir po pietų – prie parduotuvės, vidurdienį – prie ūkio |
-| Jonas | žvejys | prie ežero šiaurėje, po pietų – ant tilto per upę |
-| Rūta | sodininkė | ryte – prie ūkio vakarinių vartų, prieš pietus – prie parduotuvės |
-| Antanas | senasis ūkininkas | ryte – kryžkelėje, dieną – prie ūkio |
+| Ona | parduotuvininkė | ryte ir po pietų – prie parduotuvės, vidurdienį – prie vakarų ūkių |
+| Jonas | žvejys | prie ežero šiaurėje, po pietų – prie tvenkinio pietuose |
+| Rūta | sodininkė | ryte – prie vakarų ūkių, prieš pietus – prie fontano, po pietų – prie skelbimų lentos |
+| Antanas | senasis ūkininkas | ryte – kryžkelėje į šiaurę nuo miesto, dieną – prie rytų ūkių, vakare – prie fontano |
 
 Jie vaikšto pagal savo dienos tvarkaraštį, o vakare grįžta į savo namelius (naktį jų nesimato).
 Virš kaimyno galvos **„!“** reiškia, kad jis turi tau užduotį, o **„?“** – kad užduotį jau gali
@@ -159,6 +168,10 @@ parduodamas 3 kartus brangiau ir duoda dvigubai XP bei papildomų taškų.
 ## Kaip veikia kodas
 
 ```
+shared/               – BENDRAS KODAS klientui ir (nuo 2 etapo) serveriui, be Phaser
+├─ worldConfig.js     – pasaulio dydis, seed'as, sklypų dydis, miško tankis
+├─ WorldMap.js        – pasaulio generavimas su seed'u, zonos, sklypai, vietos, langelių taisyklės
+└─ Random.js          – atsitiktinumas su seed'u ir „triukšmas“ (value noise)
 src/
 ├─ main.js            – sukuria Phaser žaidimą ir užregistruoja scenas
 ├─ config.js          – VISI skaičiai: kainos, augimo laikai, XP, lygiai (+ pavadinimas, FEEDBACK_URL)
@@ -167,8 +180,6 @@ src/
 ├─ data/
 │  └─ npcs.js         – KAIMYNAI, jų tvarkaraščiai, DIALOGAI ir UŽDUOTYS (tik duomenys)
 ├─ logic/             – GRYNA LOGIKA (be Phaser)
-│  ├─ WorldMap.js     – pasaulio generavimas su seed'u, langelių taisyklės
-│  ├─ Random.js       – atsitiktinumas su seed'u ir „triukšmas“ (value noise)
 │  ├─ Migration.js    – senų išsaugojimų pakėlimas iki naujos versijos
 │  ├─ Time.js         – žaidimo laikas, sezonai, oras, tamsos skaičiavimas
 │  ├─ DayCycle.js     – dienos pabaiga: nauja diena, oras, augimas, energija
@@ -194,7 +205,8 @@ src/
 └─ scenes/            – ATVAIZDAVIMAS (Phaser)
    ├─ BootScene.js    – iškviečia art/ funkcijas ir sukuria tekstūras
    ├─ TitleScene.js   – pradžios ekranas: Tęsti / Naujas žaidimas / Atsiliepimas
-   ├─ GameScene.js    – žemėlapis, personažas, augalai, pelė; iškviečia logiką
+   ├─ GameScene.js    – personažas, augalai, pelė, miegas; iškviečia logiką
+   ├─ ChunkRenderer.js – pasaulio piešimas dalimis (chunk'ais): tik tai, kas prie kameros
    ├─ UIScene.js      – inventoriaus juosta, statistika, laikrodis, parduotuvė, miego langas
    ├─ Environment.js  – naktis, šviesos, lietus ir sniegas
    ├─ NpcManager.js   – kaimynų vaikščiojimas pagal tvarkaraštį
@@ -224,24 +236,34 @@ Dėl to vėliau pridėti serverį ir multiplayer bus paprasta: `logic/` failus g
 
 ### Kaip generuojamas pasaulis
 
-`createWorldMap()` faile `WorldMap.js` pasaulį kuria žingsniais:
+Pasaulio kodas yra aplanke **`shared/`**, nes jį naudos ir serveris (2 etapas). Ten nėra Phaser
+ir naršyklės dalykų, todėl tą patį failą gali paleisti ir Node.js. Kadangi visi generuoja
+pasaulį iš to paties seed'o, visų žaidėjų žemėlapis yra vienodas, o siųsti jo internetu nereikia.
+
+`createWorldMap()` faile `shared/WorldMap.js` pasaulį kuria žingsniais:
 
 1. Viskas užpildoma žole.
-2. **Miškas.** Naudojamas „vertės triukšmas“ (`createNoise2D` faile `Random.js`): sklandžiai
-   kintantys atsitiktiniai skaičiai, iš kurių gaunasi natūralios medžių dėmės. Kraštuose miškas
-   tankus, todėl pasaulis aiškiai baigiasi.
-3. **Ežeras** – apskritimas su triukšmu „sugadintu“ krantu. **Upė** teka iš ežero į pietus ir
-   kiekviename žingsnyje truputį pasislenka į šoną.
-4. Išvaloma vieta ūkiui (`FARM_ZONE`), parduotuvei (`SHOP_POS`) ir pradžios taškui.
-5. Ūkio dirva ir parduotuvė.
-6. Atsitiktinės dekoracijos: akmenys, krūmai, gėlės.
-7. **Takai** – 2 langelių pločio. Jie iškerta medžius, o per upę virsta **tiltu**.
+2. **Miškas.** Naudojamas „vertės triukšmas“ (`createNoise2D` faile `shared/Random.js`):
+   sklandžiai kintantys atsitiktiniai skaičiai, iš kurių gaunasi natūralios medžių dėmės. Už
+   žiedinio kelio miškas tankus (`FOREST_DENSITY`), tarp zonų – retos giraitės (`GROVE_DENSITY`).
+3. **Ežeras ir tvenkinys** – apskritimai su triukšmu „sugadintu“ krantu. **Upė** teka iš ežero į
+   šiaurę, paskui į vakarus ir į pietus iki pasaulio krašto. Kiekvienoje atkarpoje ji švelniai vingiuoja.
+4. Išvaloma vieta miestui (`TOWN`), sklypams (`PLOTS`) ir svarbioms vietoms (`PLACES`).
+5. **Miestas:** aikštė (`PLAZA`), fontanas (`FOUNTAIN`), skelbimų lenta (`BOARD`), parduotuvė ir
+   kaimynų nameliai (`COTTAGES`), gėlynai.
+6. **Sklypai:** tvora su vartais, takas nuo vartų, namelis ir dirva.
+7. Atsitiktinės dekoracijos: akmenys, krūmai, gėlės.
+8. **Keliai ir takai:** du pagrindiniai keliai kertasi aikštėje, žiedinis kelias juosia zonas, o
+   takai eina tarp sklypų. Takai iškerta medžius, o per vandenį virsta **tiltu**.
 
-Visi „atsitiktiniai“ skaičiai gaunami iš `CONFIG.WORLD_SEED`, todėl pasaulis kiekvieną kartą
-yra lygiai toks pat. Pakeisk seed'ą faile `config.js` ir gausi kitą pasaulį (išsaugotus
-laukelius žaidimas pats perkels į naują ūkio zoną).
+Visos zonų vietos apskaičiuojamos nuo pasaulio centro. Kaimynų tvarkaraščiuose
+(`src/data/npcs.js`) vietos nurodytos pavadinimais (`'fountain_n'`, `'lake_dock'` ir t. t.), o jų
+koordinatės yra `PLACES` faile `shared/WorldMap.js`.
 
-### Kamera ir pasaulio ribos
+Pakeisk `SEED` faile `shared/worldConfig.js` ir gausi kitokius miškus ir upės vingius (išsaugotus
+laukelius žaidimas pats perkels į tavo sklypą).
+
+### Kamera, pasaulio ribos ir greitis
 
 - `cam.startFollow(player)` – kamera švelniai seka personažą.
 - `cam.setBounds(0, 0, pasaulioPlotis, pasaulioAukštis)` – kamera nerodo nieko už krašto.
@@ -249,12 +271,26 @@ laukelius žaidimas pats perkels į naują ūkio zoną).
   pasaulio. Be to, kraštus juosia miškas.
 - Pelės koordinatės ekrane paverčiamos pasaulio koordinatėmis per
   `cameras.main.getWorldPoint()`, nes kamera būna pasislinkusi.
-- **Greitis:** visa nejudanti žemė vieną kartą „iškepama“ į vieną didelį paveikslėlį
-  (`DynamicTexture`), todėl nereikia kas kadrą piešti tūkstančių atskirų langelių.
+
+**Piešimas chunk'ais** (`src/scenes/ChunkRenderer.js`). 200×200 langelių pasaulis yra
+9600×9600 pikselių. Tiek vienu metu piešti būtų per lėta, todėl pasaulis padalintas į kvadratus
+po 16×16 langelių (`CHUNK_SIZE`):
+
+- sukuriami tik tie chunk'ai, kurie yra ekrane ir šalia jo (`CHUNK_MARGIN_TILES`);
+- nutolę daugiau nei `CHUNK_KEEP_TILES` langelių už ekrano chunk'ai ištrinami;
+- kiekvieno chunk'o žemė „iškepama“ į vieną paveikslėlį (`DynamicTexture`). Tokie paveikslėliai
+  nemetami, o pernaudojami kitiems chunk'ams, todėl atminties naudojimas neauga
+  (išbandyta: apkeliavus visą pasaulį – ne daugiau 12 paveikslėlių);
+- per vieną kadrą sukuriama ne daugiau `CHUNKS_PER_FRAME` naujų chunk'ų, kad žaidimas nestrigtų;
+- gretimos kliūtys (medžiai, tvoros) eilutėje sujungiamos į vieną ilgą fizikos stačiakampį;
+- debesų nedaug: jie keliauja kartu su kamera.
+
+**Kelio paieška** (BFS) langelius žymi skaičiais ir saugo juos skaičių masyve, todėl ilgas kelias
+per visą pasaulį randamas per kelias milisekundes.
 
 ### Senų išsaugojimų migracija
 
-`Migration.js` pakelia seną išsaugojimą iki naujausios versijos (`SAVE_VERSION: 6`):
+`Migration.js` pakelia seną išsaugojimą iki naujausios versijos (`SAVE_VERSION: 7`):
 
 - **v1 → v2:** personažo vieta buvo pikseliais, todėl ji pamirštama.
 - **v2 → v3:** mažas 20×15 žemėlapis tapo dideliu. Laukeliai ir augalai perkeliami į naują ūkio
@@ -266,6 +302,9 @@ laukelius žaidimas pats perkels į naują ūkio zoną).
   (`friendship`) ir dovanų dienos (`giftsDay`). Nežinomos užduotys ar NPC iš išsaugojimo pašalinami.
 - **v4 → v5:** inventoriaus juosta nebe pastovi, todėl vietoj langelio numerio (`selectedSlot`)
   įsimenamas pasirinktas daiktas (`selectedItem`, pvz. `seed_carrot`).
+- **v6 → v7:** pasaulis tapo 200×200 su miestu ir sklypais. Žaidėjas gauna sklypą (`plotId`), o
+  laukeliai ir augalai perkeliami į to sklypo dirvą, išlaikant jų tarpusavio išdėstymą.
+  Personažas atsiranda prie savo namelio.
 - **Kiekvieną kartą** (`fillDefaults`): jei trūksta naujų laukų (laikas, oras, energija, pasirinktas daiktas) arba jie
   netinkami, įrašomos numatytos reikšmės. Personažas, atsidūręs ant kliūties (pvz. ant naujo
   namelio), perkeliamas į pradžios tašką.
@@ -339,6 +378,9 @@ Lentelėje nurodytas **rekomenduojamas** vieno kadro dydis.
 | `tree.png` | 32x48 | 2 medžiai (paprastas, su vaisiais) |
 | `bush.png`, `rock.png` | 16x16 | krūmas, akmuo |
 | `shop.png`, `house.png` | 32x46 | parduotuvė ir namelis (apačia – 2x2 langelių pagrindas) |
+| `plaza.png` | 16x16 | 2 aikštės grindinio variantai |
+| `fountain.png` | 64x70 | fontanas (apačia – 4x4 langelių pagrindas) |
+| `board.png` | 32x32 | skelbimų lenta (apačia – 2x1 langelių pagrindas) |
 | `player.png` | 24x32 | 4 stulpeliai (ėjimo kadrai) x 4 eilutės (kryptys: žemyn, kairėn, dešinėn, aukštyn) |
 | `crop_<augalas>.png` | 16x24 | tiek kadrų, kiek to augalo `stages` (4 arba 5), pvz. `crop_carrot.png` |
 | `crop_dead.png` | 16x24 | nuvytęs augalas |
@@ -384,8 +426,9 @@ palaistytas) ir `dead` (ar nuvyto). Kai einama miegoti, `endDay()` (`DayCycle.js
   sluoksnį (`RenderTexture`) ir ties šviesomis „ištrina“ minkštus apskritimus, todėl langai ir
   plotas aplink personažą lieka šviesūs.
 - Lietus ir sniegas – dalelių srautai, „priklijuoti“ prie ekrano (`setScrollFactor(0)`).
-- Pasikeitus sezonui žemė iškepama iš naujo su to sezono piešiniais (`bakeGround`), o medžiams ir
-  krūmams pakeičiamas piešinys (raktai su priesaga, pvz. `tree_0@winter`).
+- Pasikeitus sezonui esamų chunk'ų žemė iškepama iš naujo su to sezono piešiniais
+  (`ChunkRenderer.setSeason`), o medžiams ir krūmams pakeičiamas piešinys (raktai su priesaga,
+  pvz. `tree_0@winter`). Nauji chunk'ai iškart piešiami su dabartinio sezono piešiniais.
 
 ### Taškai (points)
 
@@ -434,7 +477,7 @@ kitam kaimynui – `turnIn: 'jonas'`.
 
 ### Kaip keisti balansą
 
-Atidaryk `src/config.js` ir keisk skaičius. Pavyzdžiui, kad morka augtų 2 dienas, pakeisk `growDays: 2`, o kad diena truktų 5 minutes – `REAL_MINUTES_PER_DAY: 5`. Ten pat yra kaimynų greitis (`NPC_SPEED`), draugystės taškai už dovanas ir Onos nuolaida (`FRIENDSHIP`), energijos kainos (`ENERGY_COST`), oro tikimybės (`WEATHER`), sezono ilgis (`DAYS_PER_SEASON`) ir nakties tamsumas. Auksinio derliaus tikimybė ir vertė – `GOLDEN`.
+Atidaryk `src/config.js` ir keisk skaičius. Pavyzdžiui, kad morka augtų 2 dienas, pakeisk `growDays: 2`, o kad diena truktų 5 minutes – `REAL_MINUTES_PER_DAY: 5`. Ten pat yra kaimynų greitis (`NPC_SPEED`), draugystės taškai už dovanas ir Onos nuolaida (`FRIENDSHIP`), energijos kainos (`ENERGY_COST`), oro tikimybės (`WEATHER`), sezono ilgis (`DAYS_PER_SEASON`) ir nakties tamsumas. Auksinio derliaus tikimybė ir vertė – `GOLDEN`. Pasaulio dydis, seed'as, sklypų dydis, žaidėjo sklypas (`DEFAULT_PLOT_ID`) ir miško tankis – faile `shared/worldConfig.js`, o chunk'ų ir žemėlapio nustatymai (`CHUNK_SIZE`, `MINIMAP_SCALE`) – `src/config.js`.
 
 **Naujo augalo pridėjimas:** įrašyk naują įrašą į `CROPS` (id – vienas žodis be „_“). Nurodyk
 `art` (išvaizdos tipą: `root`, `bush`, `tall`, `leafy`, `ground` ar `flower`), `color` ir, jei

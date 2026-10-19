@@ -37,6 +37,10 @@ export function createNewState() {
     // seed'ą, išsaugojimas tai „pastebės“ ir laukelius perkels.
     world: { width: CONFIG.MAP_WIDTH, height: CONFIG.MAP_HEIGHT, seed: CONFIG.WORLD_SEED },
 
+    // Žaidėjo ūkio sklypo numeris (žr. PLOTS faile shared/WorldMap.js).
+    // Nuo 2 etapo sklypą priskirs serveris.
+    plotId: CONFIG.DEFAULT_PLOT_ID,
+
     // Personažo vieta (langelių vienetais) ir pasirinktas daiktas (pvz. 'hoe', 'seed_carrot')
     player: null,
     selectedItem: 'hoe',

@@ -25,6 +25,8 @@ export function makeObjects(scene) {
   makeRock(scene);
   makeShop(scene);
   makeHouse(scene);
+  makeFountain(scene);
+  makeBoard(scene);
   // Kaimynų nameliai – tas pats piešinys, tik kitų spalvų stogai
   for (const [npcId, npc] of Object.entries(NPCS)) {
     if (npc.home.cottage) makeHouse(scene, `cottage_${npcId}`, npc.home.roof);
@@ -471,6 +473,106 @@ function makeHouse(scene, key = 'house', roof = [0x5f8f5a, 0x3a5f3a]) {
 }
 
 // ---------- Efektai ir sąsajos detalės ----------
+// ---------- Fontanas (4x4 langeliai = 128 x 140 vnt., apačia ties y=140) ----------
+// Akmeninis baseinas su vandeniu, viduryje – kolona su dubeniu.
+// Purškiamą vandenį prideda GameScene (dalelės).
+export const FOUNTAIN_TOP_Y = 34; // kur (dizaino vienetais nuo viršaus) trykšta vanduo
+function makeFountain(scene) {
+  drawScaled(scene, 'fountain', 128, 140, (ctx) => {
+    softShadow(ctx, 64, 122, 62, 16, 0.3);
+    // išorinis akmeninis kraštas
+    ellipse(ctx, 64, 104, 60, 30);
+    fillStroke(ctx, vGradient(ctx, 74, 134, 0xc4bcae, 0x8a8274), OUTLINE, 1);
+    ellipse(ctx, 64, 112, 60, 26);
+    ctx.fillStyle = css(0x7a7264, 0.6);
+    ctx.fill();
+    // vanduo baseine
+    ellipse(ctx, 64, 102, 52, 24);
+    const water = ctx.createRadialGradient(54, 94, 4, 64, 102, 54);
+    water.addColorStop(0, css(0x8fd3ff));
+    water.addColorStop(1, css(0x2f74c0));
+    fillStroke(ctx, water, 0x5a5448, 0.8);
+    // bangelės
+    ctx.strokeStyle = css(0xffffff, 0.45);
+    ctx.lineWidth = 0.8;
+    for (const [x, y, r] of [[40, 100, 8], [86, 106, 10], [62, 114, 7], [78, 94, 6]]) {
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * 0.35, 0, Math.PI * 1.1, Math.PI * 1.9);
+      ctx.stroke();
+    }
+    // kolona
+    ctx.beginPath();
+    ctx.moveTo(56, 104); ctx.lineTo(58, 52); ctx.lineTo(70, 52); ctx.lineTo(72, 104);
+    ctx.closePath();
+    const col = ctx.createLinearGradient(56, 0, 72, 0);
+    col.addColorStop(0, css(0xd8d0c0));
+    col.addColorStop(1, css(0x8f877a));
+    fillStroke(ctx, col, OUTLINE, 0.8);
+    // viršutinis dubuo
+    ellipse(ctx, 64, 50, 22, 8);
+    fillStroke(ctx, vGradient(ctx, 42, 58, 0xd6cebe, 0x948c7e), OUTLINE, 0.8);
+    ellipse(ctx, 64, 48, 17, 5);
+    ctx.fillStyle = css(0x6fb8f0);
+    ctx.fill();
+    // vandens srovelės iš dubens į baseiną
+    ctx.strokeStyle = css(0xbfe6ff, 0.75);
+    ctx.lineWidth = 1.4;
+    for (const dir of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(64 + dir * 20, 52);
+      ctx.quadraticCurveTo(64 + dir * 30, 62, 64 + dir * 30, 92);
+      ctx.stroke();
+    }
+    // smaigalys, iš kurio trykšta vanduo
+    ctx.beginPath();
+    ctx.rect(62, FOUNTAIN_TOP_Y, 4, 12);
+    fillStroke(ctx, 0xb0a898, OUTLINE, 0.6);
+  });
+}
+
+// ---------- Skelbimų lenta (2x1 langeliai = 64 x 64 vnt., apačia ties y=64) ----------
+function makeBoard(scene) {
+  drawScaled(scene, 'board', 64, 64, (ctx) => {
+    softShadow(ctx, 32, 61, 28, 4, 0.35);
+    // stulpai
+    for (const x of [10, 50]) {
+      ctx.beginPath();
+      ctx.rect(x, 20, 4, 42);
+      fillStroke(ctx, vGradient(ctx, 20, 62, 0x7a4c22, 0x4e2e14), OUTLINE, 0.7);
+    }
+    // stogelis
+    ctx.beginPath();
+    ctx.moveTo(2, 14); ctx.lineTo(32, 4); ctx.lineTo(62, 14); ctx.lineTo(60, 17); ctx.lineTo(4, 17);
+    ctx.closePath();
+    fillStroke(ctx, vGradient(ctx, 4, 17, 0xb0563a, 0x7a3220), OUTLINE, 0.8);
+    // lenta
+    roundRect(ctx, 6, 18, 52, 30, 2);
+    fillStroke(ctx, vGradient(ctx, 18, 48, 0xc99a62, 0x9a6c3a), OUTLINE, 0.9);
+    // prisegti lapeliai
+    const notes = [[10, 22, 12, 10, 0xfff4dc, -0.08], [25, 21, 14, 12, 0xffe08a, 0.05], [42, 23, 11, 13, 0xd8f0ff, -0.04],
+      [14, 34, 13, 11, 0xffd0d8, 0.06], [33, 36, 16, 9, 0xfff4dc, -0.05]];
+    for (const [x, y, w, h, color, rot] of notes) {
+      ctx.save();
+      ctx.translate(x + w / 2, y + h / 2);
+      ctx.rotate(rot);
+      ctx.beginPath();
+      ctx.rect(-w / 2, -h / 2, w, h);
+      fillStroke(ctx, color, 0x6a5a48, 0.4);
+      ctx.strokeStyle = css(0x8a7a68, 0.6);
+      ctx.lineWidth = 0.5;
+      for (let ly = -h / 2 + 3; ly < h / 2 - 1; ly += 2.2) {
+        ctx.beginPath();
+        ctx.moveTo(-w / 2 + 1.5, ly); ctx.lineTo(w / 2 - 1.5, ly);
+        ctx.stroke();
+      }
+      circle(ctx, 0, -h / 2 + 1.2, 0.9);
+      ctx.fillStyle = css(0xd03a2a);
+      ctx.fill();
+      ctx.restore();
+    }
+  });
+}
+
 function makeEffects(scene) {
   // Šešėlis po personažu
   drawScaled(scene, 'shadow', 20, 8, (ctx) => softShadow(ctx, 10, 4, 10, 4, 0.4));
