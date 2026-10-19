@@ -91,13 +91,25 @@ Taikiklio (kampuoto rėmelio) spalva parodo, kas nutiks paspaudus:
 - **Gamta tarp zonų:** giraitės, ežeras šiaurėje, tvenkinys pietuose. Už žiedinio kelio – tankus
   miškas ir upė, per kurią keliai eina **tiltais**.
 
+**Gamta.** Už žiedinio kelio auga daugiausia eglės, tarp zonų – ąžuolai, obelys ir beržai, visi
+truputį skirtingo dydžio. Pievose matyti žolės kuokšteliai, akmenukai, dobilai ir grybai (rudenį
+jų daugiau), prie krantų – nendrės, ežere – vandens lelijos. Žolė nuspalvinta netolygiai, todėl
+pieva neatrodo kaip iš vienodų kvadratėlių.
+
+**Apšvietimas.** Rytą dangus rausvas, prieš saulėlydį viskas nusidažo auksine spalva, per lietų
+vaizdas pilkšvesnis, o naktį mirga gatvių žibintai ir šviečia namų langai.
+
+**Žmogeliukai** nupiešti detaliai: drabužiai su šešėliais, akys su vyzdžiais, antakiai, kišenės.
+Stovėdami jie kartais sumirksi, o kaimynai lengvai „kvėpuoja“.
+
 **Gyvybė ir garsai.** Dieną pavasarį ir vasarą skraido drugeliai, naktį šviečia jonvabaliai,
 rudenį krenta lapai, o pavasarį – žiedlapiai. Kiekvienas veiksmas turi savo garsą (kasimas,
 laistymas, derlius, monetos, naujas lygis), o fone groja rami muzika, naktį – tyliau. Visi garsai
 sukuriami kodu, failų nereikia. Garsą išjungsi klavišu **G**.
 
 Dešiniajame viršutiniame kampe yra žemėlapis: raudonas taškas rodo tave, baltas rėmelis –
-matomą plotą, geltonas – tavo sklypą. Paspaudus **M** jis padidėja per visą ekraną. Po žemėlapiu –
+matomą plotą, geltonas – tavo sklypą. Paspaudus **M** jis padidėja per visą ekraną: ten matyti
+vietų pavadinimai (miestas, ežeras, tvenkinys, upė, miškas) ir kaimynai (violetiniai taškai). Po žemėlapiu –
 laikrodis, sezonas, oras ir energija.
 
 **Kaimynai.** Kaime gyvena keturi kaimynai:
@@ -208,7 +220,8 @@ src/
 │  ├─ seasons.js      – kiekvieno sezono spalvos (žolė, lapai, gėlės, sniegas)
 │  ├─ terrain.js      – žolė, dirva, takai, vanduo, krantai, tiltai, tvoros, sukasta žemė
 │  ├─ objects.js      – medžiai, akmenys, krūmai, parduotuvė, dalelės, debesys
-│  ├─ characters.js   – ūkininkas ir kaimynai: 4 kryptys x 4 ėjimo kadrai
+│  ├─ characters.js   – ūkininkas ir kaimynai: 4 kryptys x (4 ėjimo kadrai + mirksėjimas)
+│  ├─ nature.js       – eglės, beržai, žolės kuokšteliai, grybai, lelijos, nendrės, žolės dėmės
 │  ├─ crops.js        – augalų stadijos ir vaisiai
 │  ├─ icons.js        – inventoriaus ir HUD ikonos
 │  └─ ui.js           – mediniai skydeliai, mygtukai, teksto stilius
@@ -220,6 +233,7 @@ src/
    ├─ UIScene.js      – inventoriaus juosta, statistika, laikrodis, parduotuvė, miego langas
    ├─ Environment.js  – naktis, šviesos, lietus ir sniegas
    ├─ Ambience.js     – drugeliai, jonvabaliai, krentantys lapai ir žiedlapiai
+   ├─ characterAnim.js – mirksėjimas stovint (žaidėjui ir kaimynams)
    ├─ NpcManager.js   – kaimynų vaikščiojimas pagal tvarkaraštį
    ├─ DialogController.js – ką kaimynas sako ir kokius atsakymus siūlo
    ├─ widgets.js      – bendri mygtukai ir atsiliepimo langas
@@ -387,6 +401,7 @@ Lentelėje nurodytas **rekomenduojamas** vieno kadro dydis.
 | `bridge.png` | 16x16 | lentos (rytai–vakarai), lentos (šiaurė–pietūs), turėklai š, r, p, v |
 | `fence.png` | 16x16 | 16 tvoros variantų pagal kaimynus: kadro nr. = š·1 + r·2 + p·4 + v·8 |
 | `tree.png` | 32x48 | 2 medžiai (paprastas, su vaisiais) |
+| `pine.png`, `birch.png` | 24x40, 20x38 | eglė ir beržas |
 | `bush.png`, `rock.png` | 16x16 | krūmas, akmuo |
 | `shop.png`, `house.png` | 32x46 | parduotuvė ir namelis (apačia – 2x2 langelių pagrindas) |
 | `plaza.png` | 16x16 | 2 aikštės grindinio variantai |
@@ -397,7 +412,7 @@ Lentelėje nurodytas **rekomenduojamas** vieno kadro dydis.
 | `stall.png` | 32x30 | 2 turgaus prekystalių variantai (apačia – 2x1 langelių pagrindas) |
 | `sign.png` | 16x20 | sklypo lentelė (numeris užrašomas pats) |
 | `farmhouse.png` | 32x46 | 6 ūkių namelių variantai (skirtingi stogai) |
-| `player.png` | 24x32 | 4 stulpeliai (ėjimo kadrai) x 4 eilutės (kryptys: žemyn, kairėn, dešinėn, aukštyn) |
+| `player.png` | 24x32 | 4 stulpeliai (ėjimo kadrai) x 4 eilutės (kryptys: žemyn, kairėn, dešinėn, aukštyn). Su savo failu personažas nemirksi |
 | `crop_<augalas>.png` | 16x24 | tiek kadrų, kiek to augalo `stages` (4 arba 5), pvz. `crop_carrot.png` |
 | `crop_dead.png` | 16x24 | nuvytęs augalas |
 | `icon_hoe.png`, `icon_watering_can.png` | 16x16 | įrankių ikonos |
@@ -445,6 +460,21 @@ palaistytas) ir `dead` (ar nuvyto). Kai einama miegoti, `endDay()` (`DayCycle.js
 - Pasikeitus sezonui esamų chunk'ų žemė iškepama iš naujo su to sezono piešiniais
   (`ChunkRenderer.setSeason`), o medžiams ir krūmams pakeičiamas piešinys (raktai su priesaga,
   pvz. `tree_0@winter`). Nauji chunk'ai iškart piešiami su dabartinio sezono piešiniais.
+
+### Kaip piešiama žemė chunk'e (sluoksniais)
+
+1. **Pagrindas:** žolė, dirva, takas arba aikštės grindinys.
+2. **Dėmės:** dideli švelnūs šviesūs ir tamsūs ratai (`blob_light`, `blob_dark`) pagal „triukšmą“.
+   Jie didesni už langelį, todėl piešiami ir truputį už chunk'o ribos – kaimyninis chunk'as
+   nupiešia tą pačią dėmę, ir siūlių nesimato.
+3. **Kraštai ir detalės:** krantai, tiltai, žolės kraštas prie takų, gėlės, kuokšteliai, grybai,
+   nendrės, lelijos. Detalės parenkamos pagal langelio „hash“, todėl visada tose pačiose vietose.
+
+Medžio rūšis (`treeKind` faile `ChunkRenderer.js`) priklauso tik nuo vietos, todėl visi žaidėjai
+mato tą patį mišką.
+
+**Spalvos „nuotaika“** (`MOOD_KEYS` faile `Environment.js`) – permatomas sluoksnis virš pasaulio.
+Kiekvienai valandai nurodyta spalva ir stiprumas, o tarp jų spalva sklandžiai pereina.
 
 ### Kaip veikia garsas
 

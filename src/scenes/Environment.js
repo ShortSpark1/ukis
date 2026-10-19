@@ -15,6 +15,15 @@ const DUSK_COLOR = 0x3a2450;   // vakaro spalva (violetinė)
 const NIGHT_COLOR = 0x0a1030;  // nakties spalva (tamsiai mėlyna)
 const PLAYER_LIGHT_RADIUS = 150;
 
+// Dienos spalvos „nuotaika“ (virš pasaulio, po tamsa): rausva aušra,
+// auksinė valanda prieš saulėlydį ir pilkšvas lietingas dangus.
+// [valanda, spalva, stiprumas] – tarp taškų reikšmės sklandžiai pereina.
+const MOOD_KEYS = [
+  [6, 0xff9a7a, 0.16], [7.5, 0xffc89a, 0.06], [9, 0xffffff, 0], [15.5, 0xffffff, 0],
+  [17.5, 0xffa040, 0.13], [19, 0xff7a3a, 0.17], [20.5, 0x9a5aa0, 0.08], [22, 0x000000, 0],
+];
+const RAIN_MOOD = { color: 0x5a6a80, alpha: 0.12 };
+
 export class Environment {
   constructor(scene, depths) {
     this.scene = scene;
@@ -26,6 +35,9 @@ export class Environment {
     // Šviesos „kaukė“ – nepridedama į sceną, naudojama tik trynimui
     this.mask = scene.make.image({ key: 'light_mask', add: false });
     this.glowDepth = depths.lights;
+    // Spalvos „nuotaikos“ sluoksnis (aušra, auksinė valanda, lietus)
+    this.mood = scene.add.rectangle(0, 0, VIEW_PX_W, VIEW_PX_H, 0xffffff, 0)
+      .setOrigin(0).setScrollFactor(0).setDepth(depths.night - 1);
 
     // Lietus ir sniegas – dalelės, kurios krenta per visą ekraną
     this.rain = scene.add.particles(0, 0, 'p_rain', {
@@ -41,12 +53,13 @@ export class Environment {
     this.weather = null;
   }
 
-  // Prideda šviesą pasaulyje (x, y – pasaulio koordinatės, radius – pikseliais)
-  addLight(x, y, radius) {
+  // Prideda šviesą pasaulyje (x, y – pasaulio koordinatės, radius – pikseliais).
+  // flicker – šviesa truputį mirga (kaip liepsna žibinte)
+  addLight(x, y, radius, flicker = false) {
     const glow = this.scene.add.image(x, y, 'light_glow')
       .setBlendMode(Phaser.BlendModes.ADD).setDepth(this.glowDepth).setAlpha(0)
       .setScale((radius * 2.2) / 256);
-    this.lights.push({ x, y, radius, glow });
+    this.lights.push({ x, y, radius, glow, flicker, phase: (x * 0.013 + y * 0.007) % 6.28 });
   }
 
   setWeather(weather) {
@@ -66,7 +79,12 @@ export class Environment {
     // Šviesos įsijungia temstant (night 0 → 1)
     const lightPower = Math.min(1, Math.max(0, (night - 0.15) * 2));
 
-    for (const l of this.lights) l.glow.setAlpha(lightPower * 0.9);
+    const now = this.scene.time.now / 1000;
+    for (const l of this.lights) {
+      const flick = l.flicker ? 0.9 + Math.sin(now * 7 + l.phase) * 0.05 + Math.sin(now * 13.3 + l.phase * 2) * 0.05 : 1;
+      l.glow.setAlpha(lightPower * 0.9 * flick);
+    }
+    this.updateMood(minutes, weather);
     if (darkness <= 0.005) {
       this.darknessLayer.setVisible(false);
       return;
@@ -96,6 +114,31 @@ export class Environment {
     if (darkness > 0.15) {
       this.eraseCircle(player.x - cam.scrollX, player.y - 30 - cam.scrollY, PLAYER_LIGHT_RADIUS, 0.75);
     }
+  }
+
+  // Aušros / saulėlydžio / lietaus spalva
+  updateMood(minutes, weather) {
+    const hour = (minutes / 60) % 24;
+    let color = 0xffffff;
+    let alpha = 0;
+    for (let i = 0; i < MOOD_KEYS.length - 1; i++) {
+      const [h0, c0, a0] = MOOD_KEYS[i];
+      const [h1, c1, a1] = MOOD_KEYS[i + 1];
+      if (hour >= h0 && hour < h1) {
+        const t = (hour - h0) / (h1 - h0);
+        const mixed = Phaser.Display.Color.Interpolate.ColorWithColor(
+          Phaser.Display.Color.ValueToColor(c0), Phaser.Display.Color.ValueToColor(c1), 100, Math.round(t * 100),
+        );
+        color = Phaser.Display.Color.GetColor(mixed.r, mixed.g, mixed.b);
+        alpha = a0 + (a1 - a0) * t;
+        break;
+      }
+    }
+    if (weather === 'rain' || weather === 'snow') {
+      color = RAIN_MOOD.color;
+      alpha = Math.max(alpha * 0.5, RAIN_MOOD.alpha);
+    }
+    this.mood.setFillStyle(color, alpha).setVisible(alpha > 0.005);
   }
 
   eraseCircle(x, y, radius, strength) {

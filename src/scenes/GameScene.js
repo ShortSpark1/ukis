@@ -24,6 +24,7 @@ import { WATER_FRAMES, PLAYER_DIRS, WALK_FRAMES, PLAYER_FRAME, LAMP_LIGHT_Y, tex
 import { Environment } from './Environment.js';
 import { ChunkRenderer, tileHash as hash } from './ChunkRenderer.js';
 import { Ambience } from './Ambience.js';
+import { idleFrame } from './characterAnim.js';
 import { NpcManager } from './NpcManager.js';
 import { SKIP_TITLE_KEY } from './TitleScene.js';
 import { DialogController } from './DialogController.js';
@@ -43,6 +44,7 @@ const DEPTH = {
   VIGNETTE: 5200, CURSOR: 5300, TEXT: 5400,
 };
 const ySort = (y) => DEPTH.OBJECTS + y;
+
 
 // Debesys juda plote aplink kamerą (didesniame už ekraną, kad persikėlimas nesimatytų)
 const CLOUD_COUNT = 8;
@@ -97,7 +99,7 @@ export class GameScene extends Phaser.Scene {
 
     // Diena / naktis, šviesos ir oras
     this.env = new Environment(this, { night: DEPTH.NIGHT, lights: DEPTH.LIGHTS, weather: DEPTH.WEATHER });
-    for (const l of this.buildingLights) this.env.addLight(l.x, l.y, l.r);
+    for (const l of this.buildingLights) this.env.addLight(l.x, l.y, l.r, l.flicker);
     // Drugeliai, jonvabaliai, krentantys lapai
     this.ambience = new Ambience(this, { creatures: DEPTH.CREATURES, glow: DEPTH.GLOW });
 
@@ -216,7 +218,7 @@ export class GameScene extends Phaser.Scene {
     // Gatvės žibintai
     const lampTop = T - 2 - this.textures.getFrame('lamp').height + LAMP_LIGHT_Y * S;
     this.map.forEach((row, y) => row.forEach((tile, x) => {
-      if (tile === TILE.LAMP) this.buildingLights.push({ x: x * T + T / 2, y: y * T + lampTop, r: 120 });
+      if (tile === TILE.LAMP) this.buildingLights.push({ x: x * T + T / 2, y: y * T + lampTop, r: 120, flicker: true });
     }));
 
     const sx = SHOP_POS.x * T;
@@ -474,6 +476,7 @@ export class GameScene extends Phaser.Scene {
     const v = this.cameras.main.worldView;
     Object.assign(this.viewInfo, {
       px: this.player.x, py: this.player.y, camX: v.x, camY: v.y, camW: v.width, camH: v.height,
+      npcs: this.npcs.npcs.map((n) => ({ x: n.sprite.x, y: n.sprite.y, hidden: n.hidden })),
     });
   }
 
@@ -507,7 +510,7 @@ export class GameScene extends Phaser.Scene {
       Sound.step(this.time.now, ground === TILE.PATH || ground === TILE.PLAZA || ground === TILE.BRIDGE);
     } else {
       this.player.anims.stop();
-      this.player.setFrame(`${this.facing}_0`);
+      this.player.setFrame(idleFrame(this.player, this.facing, this.time.now, 0));
     }
     this.player.setDepth(ySort(this.player.body.bottom));
     this.playerShadow.setPosition(this.player.x, this.player.y - 3).setDepth(this.player.depth - 0.5);

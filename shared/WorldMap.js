@@ -114,8 +114,8 @@ export const NPC_HOMES = {
 };
 
 // Ežeras šiaurėje ir tvenkinys pietuose (tarp ūkių grupių)
-const LAKE = { x: CX + 13, y: RING + 12, radius: 6 };
-const POND = { x: CX + 13, y: H - RING - 38, radius: 5 };
+export const LAKE = { x: CX + 13, y: RING + 12, radius: 6 };
+export const POND = { x: CX + 13, y: H - RING - 38, radius: 5 };
 
 // Ūkių grupės: 3 eilės (šiaurė, vidurys, pietūs) x 2 stulpeliai (vakarai, rytai).
 // Vidurinės eilės tarpas tarp sklypų sutampa su pagrindiniu keliu.

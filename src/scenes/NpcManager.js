@@ -4,6 +4,7 @@ import { findPath } from '../logic/Pathfinding.js';
 import { isWalkable, PLACES, NPC_HOMES } from '../../shared/WorldMap.js';
 import { availableQuestFor, readyQuestFor } from '../logic/Quests.js';
 import { PLAYER_DIRS, WALK_FRAMES, textStyle } from '../art/SpriteLibrary.js';
+import { idleFrame } from './characterAnim.js';
 
 const T = CONFIG.TILE_SIZE;
 const SPEED = CONFIG.NPC_SPEED * T;
@@ -47,7 +48,8 @@ export class NpcManager {
     this.scene.tweens.add({ targets: bubble, scale: 1.2, duration: 450, yoyo: true, repeat: -1 });
     const door = NPC_HOMES[id];
     if (!door) console.warn(`[NPC] ${data.name}: nėra namų vietos NPC_HOMES (shared/WorldMap.js)!`);
-    return { id, data, key, door, sprite, shadow, label, bubble, path: null, goalKey: null, goingHome: false, hidden: false, facing: 'down' };
+    const blinkOffset = [...id].reduce((a, ch) => a + ch.charCodeAt(0) * 97, 0);
+    return { id, data, key, door, blinkOffset, sprite, shadow, label, bubble, path: null, goalKey: null, goingHome: false, hidden: false, facing: 'down' };
   }
 
   // Įspėja konsolėje, jei duomenų faile nurodyta vieta, į kurią nueiti negalima
@@ -162,11 +164,15 @@ export class NpcManager {
     if (Math.abs(dx) >= Math.abs(dy)) npc.facing = dx > 0 ? 'right' : 'left';
     else npc.facing = dy > 0 ? 'down' : 'up';
     npc.sprite.anims.play(`${npc.key}_walk_${npc.facing}`, true);
+    npc.sprite.setScale(1);
   }
 
+  // Stovi: mirksi ir lengvai „kvėpuoja“ (vos pastebimai išsitempia)
   idle(npc) {
     npc.sprite.anims.stop();
-    npc.sprite.setFrame(`${npc.facing}_0`);
+    const now = this.scene.time.now;
+    npc.sprite.setFrame(idleFrame(npc.sprite, npc.facing, now, npc.blinkOffset));
+    npc.sprite.setScale(1, 1 + Math.sin((now + npc.blinkOffset) / 520) * 0.015);
   }
 
   updateVisuals(npc) {

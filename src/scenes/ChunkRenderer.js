@@ -1,8 +1,13 @@
 import { CONFIG } from '../config.js';
-import { getTile, getGround, groundAt, isBlocked, plotAt, TILE, COTTAGES } from '../../shared/WorldMap.js';
+import {
+  getTile, getGround, groundAt, isBlocked, plotAt, TILE, COTTAGES, MAP_WIDTH, MAP_HEIGHT,
+} from '../../shared/WorldMap.js';
+import { WORLD } from '../../shared/worldConfig.js';
+import { createNoise2D } from '../../shared/Random.js';
 import {
   GRASS_VARIANTS, DIRT_VARIANTS, FLOWER_VARIANTS, PATH_VARIANTS, PLAZA_VARIANTS, TREE_VARIANTS,
   TREE_ORIGIN_Y, FOUNTAIN_TOP_Y, SIGN_TEXT_Y, STALL_VARIANTS, HOUSE_VARIANTS, fenceFrameName, sk, textStyle,
+  PINE_ORIGIN_Y, BIRCH_ORIGIN_Y, TUFT_VARIANTS, LILY_VARIANTS,
 } from '../art/SpriteLibrary.js';
 import { VIEW_PX_W, VIEW_PX_H } from './layout.js';
 
@@ -12,6 +17,25 @@ const CS = CONFIG.CHUNK_SIZE;   // chunk'o dydis langeliais
 const CHUNK_PX = CS * T;        // chunk'o dydis pikseliais
 const SIDES = { n: [0, -1], e: [1, 0], s: [0, 1], w: [-1, 0] };
 const CORNERS = { nw: [-1, -1], ne: [1, -1], se: [1, 1], sw: [-1, 1] };
+
+// Žolės „dėmių“ triukšmas (tik vaizdui, todėl ne shared/)
+const shadeNoise = createNoise2D(WORLD.SEED + 7);
+const SHADE_ALPHA = 0.11;
+
+// Kokios rūšies medis auga langelyje: už žiedinio kelio – daugiausia eglės,
+// tarp zonų – ąžuolai, obelys ir beržai. Rūšis priklauso tik nuo vietos,
+// todėl visiems žaidėjams vienoda.
+function treeKind(x, y, h) {
+  const edge = Math.min(x, y, MAP_WIDTH - 1 - x, MAP_HEIGHT - 1 - y);
+  const r = (h >>> 4) % 100;
+  if (edge < WORLD.RING_ROAD) return r < 68 ? 'pine' : r < 84 ? 'birch' : 'oak';
+  return r < 22 ? 'birch' : r < 32 ? 'pine' : 'oak';
+}
+const TREE_LOOKS = {
+  pine: { origin: PINE_ORIGIN_Y, base: () => 'pine' },
+  birch: { origin: BIRCH_ORIGIN_Y, base: () => 'birch' },
+  oak: { origin: TREE_ORIGIN_Y, base: (h) => `tree_${h % TREE_VARIANTS}` },
+};
 
 // Pastovus „atsitiktinis“ skaičius kiekvienam langeliui (variantams parinkti)
 export function tileHash(x, y) {
@@ -156,59 +180,93 @@ export class ChunkRenderer {
     const y0 = chunk.cy * CS;
     tex.clear();
     tex.beginDraw();
-    const stamp = (key, px, py) => tex.batchDrawFrame(key, undefined, px, py);
+    const stamp = (key, px, py, alpha = 1) => tex.batchDrawFrame(key, undefined, px, py, alpha);
     const waterOrOutside = (x, y) => {
       const t = getTile(map, x, y);
       return t === null || getGround(t) === TILE.WATER;
     };
-
+    const tiles = [];
     for (let y = y0; y < y0 + CS; y++) {
       for (let x = x0; x < x0 + CS; x++) {
         const type = getTile(map, x, y);
-        if (type === null) continue;
-        const gnd = groundAt(map, x, y);
-        const h = tileHash(x, y);
-        const px = (x - x0) * T;
-        const py = (y - y0) * T;
+        if (type !== null) tiles.push({ x, y, type, gnd: groundAt(map, x, y), h: tileHash(x, y), px: (x - x0) * T, py: (y - y0) * T });
+      }
+    }
 
-        if (gnd === TILE.WATER) {
-          // Krantas toje pusėje, kur prasideda žemė
-          for (const [dir, [dx, dy]] of Object.entries(SIDES)) {
-            const n = getTile(map, x + dx, y + dy);
-            if (n !== null && getGround(n) !== TILE.WATER) stamp(`shore_${dir}`, px, py);
-          }
-          // Vidiniai kampai: žemė tik įstrižai
-          for (const [dir, [dx, dy]] of Object.entries(CORNERS)) {
-            if (!waterOrOutside(x + dx, y + dy) && waterOrOutside(x + dx, y) && waterOrOutside(x, y + dy)) {
-              stamp(`shore_inner_${dir}`, px, py);
-            }
-          }
-          // Tiltas: lentos guldomos skersai ėjimo krypties
-          if (type === TILE.BRIDGE) {
-            const horizontal = [getTile(map, x - 1, y), getTile(map, x + 1, y)]
-              .some((n) => n === TILE.PATH || n === TILE.BRIDGE);
-            stamp(horizontal ? 'bridge_h' : 'bridge_v', px, py);
-            // turėklai tik ten, kur tiltas baigiasi (ne tarp dviejų tilto eilių)
-            for (const dir of horizontal ? ['n', 's'] : ['e', 'w']) {
-              const [dx, dy] = SIDES[dir];
-              if (getTile(map, x + dx, y + dy) !== TILE.BRIDGE) stamp(`bridge_rail_${dir}`, px, py);
-            }
-          }
-        } else {
-          let base = `grass_${h % GRASS_VARIANTS}`;
-          if (gnd === TILE.DIRT) base = `dirt_${h % DIRT_VARIANTS}`;
-          if (gnd === TILE.PATH) base = `path_${h % PATH_VARIANTS}`;
-          if (gnd === TILE.PLAZA) base = `plaza_${h % PLAZA_VARIANTS}`;
-          stamp(sk(base, season), px, py);
-          // Žolės kraštas ant dirvos, takų ir grindinio
-          if (gnd !== TILE.GRASS) {
-            for (const [dir, [dx, dy]] of Object.entries(SIDES)) {
-              const n = getTile(map, x + dx, y + dy);
-              if (n !== null && groundAt(map, x + dx, y + dy) === TILE.GRASS) stamp(sk(`dirtedge_${dir}`, season), px, py);
-            }
+    // 1 sluoksnis: pagrindinė žemė (žolė, dirva, takas, grindinys)
+    for (const t of tiles) {
+      if (t.gnd === TILE.WATER) continue;
+      let base = `grass_${t.h % GRASS_VARIANTS}`;
+      if (t.gnd === TILE.DIRT) base = `dirt_${t.h % DIRT_VARIANTS}`;
+      if (t.gnd === TILE.PATH) base = `path_${t.h % PATH_VARIANTS}`;
+      if (t.gnd === TILE.PLAZA) base = `plaza_${t.h % PLAZA_VARIANTS}`;
+      stamp(sk(base, season), t.px, t.py);
+    }
+
+    // 2 sluoksnis: švelnios šviesios ir tamsios dėmės ant žolės – iš toli
+    // pieva atrodo gyva, o ne iš vienodų kvadratėlių. Dėmės didesnės už
+    // langelį, todėl piešiame ir truputį už chunk'o ribų (kaimyninis
+    // chunk'as nupieš tą pačią dėmę – siūlių nesimato).
+    for (let y = y0 - 1; y <= y0 + CS; y += 1) {
+      for (let x = x0 - 1; x <= x0 + CS; x += 1) {
+        if ((x + y) % 2 !== 0 || groundAt(map, x, y) !== TILE.GRASS) continue;
+        const n = shadeNoise(x * 0.09, y * 0.09) - 0.5;
+        if (Math.abs(n) < 0.06) continue;
+        stamp(n > 0 ? 'blob_light' : 'blob_dark', (x - x0 - 1) * T, (y - y0 - 1) * T, Math.min(1, Math.abs(n) * 2) * SHADE_ALPHA);
+      }
+    }
+
+    // 3 sluoksnis: kraštai, krantai, tiltai, gėlės ir smulkios detalės
+    for (const { x, y, type, gnd, h, px, py } of tiles) {
+      if (gnd === TILE.WATER) {
+        let nearLand = false;
+        // Krantas toje pusėje, kur prasideda žemė
+        for (const [dir, [dx, dy]] of Object.entries(SIDES)) {
+          const n = getTile(map, x + dx, y + dy);
+          if (n !== null && getGround(n) !== TILE.WATER) {
+            stamp(`shore_${dir}`, px, py);
+            nearLand = true;
           }
         }
-        if (type === TILE.FLOWERS) stamp(sk(`flowers_${h % FLOWER_VARIANTS}`, season), px, py);
+        // Vidiniai kampai: žemė tik įstrižai
+        for (const [dir, [dx, dy]] of Object.entries(CORNERS)) {
+          if (!waterOrOutside(x + dx, y + dy) && waterOrOutside(x + dx, y) && waterOrOutside(x, y + dy)) {
+            stamp(`shore_inner_${dir}`, px, py);
+          }
+        }
+        // Tiltas: lentos guldomos skersai ėjimo krypties
+        if (type === TILE.BRIDGE) {
+          const horizontal = [getTile(map, x - 1, y), getTile(map, x + 1, y)]
+            .some((n) => n === TILE.PATH || n === TILE.BRIDGE);
+          stamp(horizontal ? 'bridge_h' : 'bridge_v', px, py);
+          // turėklai tik ten, kur tiltas baigiasi (ne tarp dviejų tilto eilių)
+          for (const dir of horizontal ? ['n', 's'] : ['e', 'w']) {
+            const [dx, dy] = SIDES[dir];
+            if (getTile(map, x + dx, y + dy) !== TILE.BRIDGE) stamp(`bridge_rail_${dir}`, px, py);
+          }
+        } else {
+          // Prie kranto – nendrės, toliau – lelijos (ne žiemą)
+          const r = (h >>> 8) % 100;
+          if (nearLand && r < 30) stamp(sk('reeds', season), px, py);
+          else if (!nearLand && season !== 'winter' && r < 7) stamp(`lily_${h % LILY_VARIANTS}`, px, py);
+        }
+        continue;
+      }
+      // Žolės kraštas ant dirvos, takų ir grindinio
+      if (gnd !== TILE.GRASS) {
+        for (const [dir, [dx, dy]] of Object.entries(SIDES)) {
+          const n = getTile(map, x + dx, y + dy);
+          if (n !== null && groundAt(map, x + dx, y + dy) === TILE.GRASS) stamp(sk(`dirtedge_${dir}`, season), px, py);
+        }
+      }
+      if (type === TILE.FLOWERS) stamp(sk(`flowers_${h % FLOWER_VARIANTS}`, season), px, py);
+      // Smulkios detalės ant laisvos žolės (tik vaizdas – vaikščioti netrukdo)
+      if (type === TILE.GRASS) {
+        const r = (h >>> 8) % 100;
+        if (r < 14) stamp(sk(`tuft_${h % TUFT_VARIANTS}`, season), px, py);
+        else if (r < 17) stamp('pebbles', px, py);
+        else if (r < 19 && season !== 'winter') stamp('clover', px, py);
+        else if (r < (season === 'autumn' ? 23 : 20) && season !== 'winter') stamp('mushrooms', px, py);
       }
     }
     tex.endDraw();
@@ -240,9 +298,13 @@ export class ChunkRenderer {
         }
 
         if (type === TILE.TREE) {
-          const base = `tree_${h % TREE_VARIANTS}`;
-          const img = add(scene.add.image(px + T / 2, py + T - 4, sk(base, this.season))
-            .setOrigin(0.5, TREE_ORIGIN_Y) // kamieno apačia
+          // Rūšis pagal vietą; nedidelis dydžio skirtumas – miškas atrodo natūraliau
+          const look = TREE_LOOKS[treeKind(x, y, h)];
+          const base = look.base(h);
+          const size = 0.9 + ((h >>> 12) % 21) / 100;
+          const img = add(scene.add.image(px + T / 2 + ((h >>> 3) % 7) - 3, py + T - 4, sk(base, this.season))
+            .setOrigin(0.5, look.origin) // kamieno apačia
+            .setScale(size)
             .setDepth(ySort(py + T - 6)));
           chunk.seasonal.push({ img, base });
         } else if (type === TILE.BUSH) {

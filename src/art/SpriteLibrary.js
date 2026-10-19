@@ -12,6 +12,7 @@ import {
 import { makePlayer, makeCharacter, PLAYER_DIRS, WALK_FRAMES, PLAYER_FRAME_W, PLAYER_FRAME_H } from './characters.js';
 import { NPCS } from '../data/npcs.js';
 import { makeCrops } from './crops.js';
+import { makeNature, PINE_ORIGIN_Y, BIRCH_ORIGIN_Y, TUFT_VARIANTS, LILY_VARIANTS } from './nature.js';
 import { makeIcons } from './icons.js';
 import { ensurePanel, textStyle, makeBarTextures, FONT_FAMILY } from './ui.js';
 import { SEASON_KEYS, sk } from './seasons.js';
@@ -32,7 +33,7 @@ import { SEASON_KEYS, sk } from './seasons.js';
 export {
   GRASS_VARIANTS, DIRT_VARIANTS, FLOWER_VARIANTS, WATER_FRAMES, PATH_VARIANTS, PLAZA_VARIANTS, TREE_VARIANTS,
   TREE_ORIGIN_Y, FOUNTAIN_TOP_Y, LAMP_LIGHT_Y, SIGN_TEXT_Y, STALL_VARIANTS, BUTTERFLY_VARIANTS, PLAYER_DIRS, WALK_FRAMES, fenceFrameName, ensurePanel, textStyle, FONT_FAMILY,
-  SEASON_KEYS, sk,
+  SEASON_KEYS, sk, PINE_ORIGIN_Y, BIRCH_ORIGIN_Y, TUFT_VARIANTS, LILY_VARIANTS,
 };
 export const PLAYER_FRAME = { w: PLAYER_FRAME_W, h: PLAYER_FRAME_H };
 export const HOUSE_VARIANTS = HOUSE_ROOFS.length;
@@ -67,6 +68,8 @@ function buildOverrideList() {
     { file: 'bridge.png', names: ['bridge_h', 'bridge_v', ...SIDES.map((d) => `bridge_rail_${d}`)], base: '16x16' },
     { file: 'fence.png', sheet: 'fence', names: range(16, fenceFrameName), base: '16x16' },
     { file: 'tree.png', seasonal: true, names: range(TREE_VARIANTS, (i) => `tree_${i}`), base: '32x48' },
+    { file: 'pine.png', seasonal: true, names: ['pine'], base: '24x40' },
+    { file: 'birch.png', seasonal: true, names: ['birch'], base: '20x38' },
     { file: 'bush.png', seasonal: true, names: ['bush'], base: '16x16' },
     { file: 'rock.png', names: ['rock'], base: '16x16' },
     { file: 'shop.png', names: ['shop'], base: '32x46' },
@@ -139,6 +142,7 @@ export function buildSprites(scene) {
   // Visa grafika piešiama kodu
   makeTerrain(scene);  // žolė, dirva, takai, vanduo, krantai, tiltai, tvoros, sukasta žemė, gėlės
   makeObjects(scene);  // medžiai, akmenys, krūmai, parduotuvė, efektai
+  makeNature(scene);   // eglės, beržai, žolės kuokšteliai, grybai, lelijos, nendrės
   makePlayer(scene);   // ūkininkas su ėjimo animacija
   for (const [npcId, npc] of Object.entries(NPCS)) makeCharacter(scene, `npc_${npcId}`, npc.look); // kaimynai
   makeCrops(scene);    // augalų stadijos
@@ -219,7 +223,24 @@ export function makeMinimapTexture(scene, key, map, scale, colors) {
   map.forEach((row, y) => row.forEach((tile, x) => {
     ctx.fillStyle = colors[tile] ?? '#5a9c3a';
     ctx.fillRect(x * scale, y * scale, scale, scale);
+    // Truputis atspalvių – žemėlapis atrodo kaip pieštas, o ne iš vienodų kvadratėlių
+    const h = ((x * 374761393 + y * 668265263) >>> 0) % 100;
+    ctx.fillStyle = h < 50 ? `rgba(255,255,255,${h / 1200})` : `rgba(0,0,0,${(h - 50) / 900})`;
+    ctx.fillRect(x * scale, y * scale, scale, scale);
+    // Didesniame žemėlapyje medžiai – tamsūs taškeliai su šviesiu kraštu
+    if (tile === 'tree' && scale >= 3) {
+      ctx.fillStyle = 'rgba(10,40,15,0.55)';
+      ctx.beginPath();
+      ctx.arc(x * scale + scale / 2, y * scale + scale / 2, scale * 0.42, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }));
+  // Švelnus šešėlis kraštuose
+  const g = ctx.createRadialGradient(c.width / 2, c.height / 2, c.width * 0.35, c.width / 2, c.height / 2, c.width * 0.72);
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(1, 'rgba(0,0,0,0.28)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, c.width, c.height);
   scene.textures.addCanvas(key, c);
   return key;
 }

@@ -10,7 +10,7 @@ import { xpToNextLevel } from '../logic/Progression.js';
 import { getSeason, getDayOfSeason, getYear, formatClock, getDarkness, SEASON_NAMES, SEASON_NAMES_SHORT } from '../logic/Time.js';
 // Visa grafika – tik iš SpriteLibrary
 import { ensurePanel, textStyle, makeMinimapTexture } from '../art/SpriteLibrary.js';
-import { TILE, TOWN, getPlotById } from '../../shared/WorldMap.js';
+import { TILE, TOWN, LAKE, POND, getPlotById } from '../../shared/WorldMap.js';
 import { WORLD } from '../../shared/worldConfig.js';
 import { VIEW_PX_W, VIEW_PX_H, SLOT, HOTBAR_Y, slotCenter } from './layout.js';
 import { Sound } from '../audio/Sound.js';
@@ -449,18 +449,24 @@ export class UIScene extends Phaser.Scene {
     this.mmPlots = this.add.graphics();
     this.mmView = this.add.graphics();
     this.mmPlayer = this.add.circle(0, 0, big ? 5 : 3, 0xff3b30).setStrokeStyle(1.5, 0xffffff);
-    this.minimap.add([base, this.mmPlots, this.mmView, this.mmPlayer]);
+    // Kaimynai – violetiniai taškai (tik dideliame žemėlapyje)
+    this.mmNpcs = this.add.graphics();
+    this.minimap.add([base, this.mmPlots, this.mmNpcs, this.mmView, this.mmPlayer]);
     const label = big ? 'Spausk, kur nori nueiti.  M – uždaryti' : 'Žemėlapis (M – didesnis)';
     this.minimap.add(this.add.text(w / 2, h + 3, label, textStyle(big ? 13 : 11, '#e8d3a8')).setOrigin(0.5, 0));
     if (big) {
       // Didžiajame žemėlapyje – vietų pavadinimai
       const myPlot = getPlotById(this.state.plotId);
       const labels = [
-        [TOWN.x + TOWN.w / 2, TOWN.y - 2, 'Miestas'],
-        [myPlot.x + WORLD.PLOT_SIZE / 2, myPlot.y - 1, 'Tavo ūkis'],
+        [TOWN.x + TOWN.w / 2, TOWN.y - 2, 'Miestas', '#ffe7a3'],
+        [myPlot.x + WORLD.PLOT_SIZE / 2, myPlot.y - 1, 'Tavo ūkis', '#ffe066'],
+        [LAKE.x, LAKE.y - LAKE.radius - 1, 'Ežeras', '#cfe9ff'],
+        [POND.x, POND.y - POND.radius - 1, 'Tvenkinys', '#cfe9ff'],
+        [12, 8, 'Upė', '#cfe9ff'],
+        [this.mapTilesW / 2, this.mapTilesH - 5, 'Miškas', '#c8f7a8'],
       ];
-      for (const [tx, ty, text] of labels) {
-        this.minimap.add(this.add.text(tx * scale, ty * scale, text, textStyle(14, '#ffe7a3')).setOrigin(0.5, 1));
+      for (const [tx, ty, text, color] of labels) {
+        this.minimap.add(this.add.text(tx * scale, ty * scale, text, textStyle(14, color)).setOrigin(0.5, 1));
       }
     }
     this.tweens.add({ targets: this.mmPlayer, scale: 1.35, duration: 500, yoyo: true, repeat: -1 });
@@ -630,6 +636,15 @@ export class UIScene extends Phaser.Scene {
     if (!v || !this.minimap.visible) return;
     const k = this.mmScale / T;
     this.mmPlayer.setPosition(v.px * k, v.py * k);
+    this.mmNpcs.clear();
+    if (this.mmMode === 'big' && v.npcs) {
+      this.mmNpcs.fillStyle(0xc77bff, 1).lineStyle(1, 0xffffff, 1);
+      for (const n of v.npcs) {
+        if (n.hidden) continue;
+        this.mmNpcs.fillCircle(n.x * k, n.y * k, 3.5);
+        this.mmNpcs.strokeCircle(n.x * k, n.y * k, 3.5);
+      }
+    }
     this.mmView.clear();
     this.mmView.lineStyle(1, 0xffffff, 0.9);
     this.mmView.strokeRect(v.camX * k, v.camY * k, v.camW * k, v.camH * k);
