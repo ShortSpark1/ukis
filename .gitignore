@@ -1,0 +1,8 @@
+# Įdiegtos bibliotekos (atsisiunčiamos per npm install) – į git nekeliame
+node_modules
+# Paruošta versija (ją sukuria GitHub Actions)
+dist
+# Sistemos šiukšlės
+.DS_Store
+Thumbs.db
+*.log

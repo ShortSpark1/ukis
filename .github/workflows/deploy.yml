@@ -1,0 +1,61 @@
+# =====================================================================
+#  Automatinis žaidimo paskelbimas GitHub Pages
+#  Po kiekvieno „git push“ į main šaką GitHub pats:
+#    1) atsisiunčia kodą, 2) įdiegia priklausomybes (npm ci),
+#    3) sukuria paruoštą versiją (npm run build → dist/),
+#    4) paskelbia dist/ aplanką GitHub Pages.
+#  Eigą matysi repozitorijos skirtuke „Actions“.
+# =====================================================================
+name: Paskelbti žaidimą
+
+on:
+  push:
+    branches: [main]
+  # leidžia paleisti ranka: Actions → Paskelbti žaidimą → Run workflow
+  workflow_dispatch:
+
+# Leidimai, kurių reikia paskelbimui GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Jei greitai padarai kelis push – paskelbiama tik naujausia versija
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Atsisiųsti kodą
+        uses: actions/checkout@v4
+
+      - name: Įdiegti Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Įdiegti priklausomybes
+        run: npm ci
+
+      - name: Sukurti paruoštą versiją
+        run: npm run build
+
+      - name: Įkelti dist/ aplanką
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Paskelbti GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
