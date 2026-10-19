@@ -49,6 +49,10 @@ export const TILE = {
   PLAZA: 'plaza',       // miesto aikštės grindinys – galima vaikščioti
   FOUNTAIN: 'fountain', // fontanas aikštės viduryje – negalima vaikščioti
   BOARD: 'board',       // skelbimų lenta – negalima vaikščioti
+  LAMP: 'lamp',         // gatvės žibintas (naktį šviečia) – negalima vaikščioti
+  BENCH: 'bench',       // suoliukas aikštėje – negalima vaikščioti
+  STALL: 'stall',       // turgaus prekystalis (2x1) – negalima vaikščioti
+  SIGN: 'sign',         // sklypo numerio lentelė – negalima vaikščioti
 };
 
 const W = WORLD.WIDTH;
@@ -72,7 +76,29 @@ const ROAD = { x: CX - 1, y: CY - 1, width: 3 };
 export const TOWN = { x: CX - 22, y: CY - 21, w: 44, h: 43 };
 export const PLAZA = { x: CX - 12, y: CY - 12, w: 24, h: 24 };
 export const FOUNTAIN = { x: CX - 2, y: CY - 2, w: 4, h: 4 };
-export const BOARD = { x: CX + 4, y: CY - 8, w: 2, h: 1 };
+export const BOARD = { x: CX - 5, y: CY - 8, w: 2, h: 1 };
+// Gėlynai su medžiu aikštės kampuose (4x4)
+const GARDENS = [
+  { x: PLAZA.x + 2, y: PLAZA.y + 2 }, { x: PLAZA.x + 18, y: PLAZA.y + 2 },
+  { x: PLAZA.x + 2, y: PLAZA.y + 18 }, { x: PLAZA.x + 18, y: PLAZA.y + 18 },
+].map((g) => ({ ...g, w: 4, h: 4 }));
+// Suoliukai aplink fontaną ir turgaus prekystaliai (2x1)
+const BENCHES = [
+  { x: CX - 4, y: CY - 4 }, { x: CX + 3, y: CY - 4 }, { x: CX - 4, y: CY + 3 }, { x: CX + 3, y: CY + 3 },
+];
+export const STALLS = [{ x: CX - 5, y: CY + 7 }, { x: CX + 3, y: CY + 7 }];
+// Žibintai aikštėje: kampuose ir abipus įėjimų
+const PLAZA_LAMPS = (() => {
+  const x0 = PLAZA.x;
+  const y0 = PLAZA.y;
+  const x1 = PLAZA.x + PLAZA.w - 1;
+  const y1 = PLAZA.y + PLAZA.h - 1;
+  return [
+    [x0, y0], [x1, y0], [x0, y1], [x1, y1],
+    [CX - 3, y0], [CX + 2, y0], [CX - 3, y1], [CX + 2, y1],
+    [x0, CY - 3], [x0, CY + 2], [x1, CY - 3], [x1, CY + 2],
+  ].map(([x, y]) => ({ x, y }));
+})();
 // Parduotuvė (2x2) – aikštės šiaurinėje pusėje; durys – langelis po ja
 export const SHOP_POS = { x: CX - 9, y: CY - 15 };
 // Kaimynų nameliai (2x2) aplink aikštę. Ona gyvena parduotuvėje.
@@ -144,7 +170,7 @@ export const PLACES = {
   fountain_s: { x: CX - 1, y: FOUNTAIN.y + FOUNTAIN.h + 1 },
   fountain_w: { x: FOUNTAIN.x - 2, y: CY },
   fountain_e: { x: FOUNTAIN.x + FOUNTAIN.w + 1, y: CY - 1 },
-  board: { x: BOARD.x, y: BOARD.y + 1 },
+  board: { x: BOARD.x + 1, y: BOARD.y + 1 },
   lake_dock: { x: LAKE.x, y: LAKE.y + 9 },
   pond_shore: { x: POND.x, y: POND.y + 8 },
   w_farms: { x: LANES_X[0] + 1, y: CY },
@@ -227,6 +253,9 @@ export function createWorldMap(seed = WORLD.SEED) {
   // Takeliai prie ežero ir tvenkinio (sustoja prie vandens)
   carvePath(map, LAKE.x, LANES_Y[0], LAKE.x, LAKE.y, 'vertical', 2, false);
   carvePath(map, POND.x, LANES_Y[2], POND.x, POND.y, 'vertical', 2, false);
+  // Žibintai palei pagrindinius kelius (kas 10 langelių, pakaitomis abiejose pusėse)
+  placeRoadLamps(map);
+
   // Takeliai nuo kaimynų durų iki aikštės
   for (const door of Object.values(NPC_HOMES)) {
     if (door.x < PLAZA.x) carvePath(map, door.x, door.y, PLAZA.x - 1, door.y, 'horizontal');
@@ -235,6 +264,26 @@ export function createWorldMap(seed = WORLD.SEED) {
   }
 
   return map;
+}
+
+function placeRoadLamps(map) {
+  const step = 10;
+  let i = 0;
+  for (let t = RING + 4; t < W - RING - 4; t += step, i++) {
+    const side = i % 2 === 0;
+    // šalia vertikalaus kelio ir šalia horizontalaus
+    const spots = [
+      { x: side ? ROAD.x - 1 : ROAD.x + ROAD.width, y: t },
+      { x: t, y: side ? ROAD.y - 1 : ROAD.y + ROAD.width },
+    ];
+    for (const p of spots) {
+      if (inRect(TOWN, p.x, p.y, 0)) continue;
+      const tile = getTile(map, p.x, p.y);
+      if (tile === TILE.GRASS || tile === TILE.FLOWERS || tile === TILE.TREE || tile === TILE.BUSH || tile === TILE.ROCK) {
+        map[p.y][p.x] = TILE.LAMP;
+      }
+    }
+  }
 }
 
 // Ežeras: apskritimas su „triukšmu sugadintu“ krantu
@@ -279,6 +328,14 @@ function buildTown(map, rng, fill, set) {
   fill(PLAZA, TILE.PLAZA);
   fill(FOUNTAIN, TILE.FOUNTAIN);
   fill(BOARD, TILE.BOARD);
+  // Gėlynai su medžiu viduryje (gėlės – ant žolės, todėl atrodo kaip žalia salelė)
+  for (const g of GARDENS) {
+    fill(g, TILE.FLOWERS);
+    set(g.x + 1, g.y + 1, TILE.TREE);
+  }
+  for (const b of BENCHES) set(b.x, b.y, TILE.BENCH);
+  for (const st of STALLS) fill({ ...st, w: 2, h: 1 }, TILE.STALL);
+  for (const l of PLAZA_LAMPS) set(l.x, l.y, TILE.LAMP);
   fill({ ...SHOP_POS, w: 2, h: 2 }, TILE.SHOP);
   for (const c of COTTAGES) fill({ ...c, w: 2, h: 2 }, TILE.COTTAGE);
   // Prie durų – takas
@@ -317,6 +374,10 @@ function buildPlot(map, plot, fill) {
   fill({ ...plot.house, w: 2, h: 2 }, TILE.HOUSE);
   fill({ ...plot.door, w: 2, h: 1 }, TILE.PATH);
   fill(plot.field, TILE.DIRT);
+  // Prie vartų – žibintas ir lentelė su sklypo numeriu
+  const innerX = plot.gateSide === 'e' ? x1 - 1 : plot.x + 1;
+  map[plot.y + 4][innerX] = TILE.LAMP;
+  map[plot.y + 7][innerX] = TILE.SIGN;
 }
 
 // Ar langelis (x, y) yra stačiakampyje r (su atsarga margin)?
@@ -342,6 +403,7 @@ function clearRect(map, x0, y0, w, h) {
 // Šių langelių takai neliečia (pastatai, tvoros, dirva, aikštė)
 const PATH_KEEPS = new Set([
   TILE.DIRT, TILE.SHOP, TILE.HOUSE, TILE.COTTAGE, TILE.BRIDGE, TILE.FENCE, TILE.PLAZA, TILE.FOUNTAIN, TILE.BOARD,
+  TILE.LAMP, TILE.BENCH, TILE.STALL, TILE.SIGN,
 ]);
 
 // Iškerta tiesų width langelių pločio taką nuo (x0, y0) iki (x1, y1).
@@ -378,6 +440,7 @@ export function getTile(map, x, y) {
 // Ar per langelį negalima praeiti?
 const BLOCKING = new Set([
   TILE.WATER, TILE.SHOP, TILE.HOUSE, TILE.COTTAGE, TILE.TREE, TILE.ROCK, TILE.BUSH, TILE.FENCE, TILE.FOUNTAIN, TILE.BOARD,
+  TILE.LAMP, TILE.BENCH, TILE.STALL, TILE.SIGN,
 ]);
 
 export function isBlocked(tileType) {
@@ -396,7 +459,19 @@ export function getGround(tileType) {
   if (tileType === TILE.DIRT) return TILE.DIRT;
   if (tileType === TILE.WATER || tileType === TILE.BRIDGE) return TILE.WATER;
   if (tileType === TILE.PATH) return TILE.PATH;
-  if (tileType === TILE.PLAZA || tileType === TILE.FOUNTAIN || tileType === TILE.BOARD) return TILE.PLAZA;
+  if (ON_PLAZA.has(tileType)) return TILE.PLAZA;
+  return TILE.GRASS;
+}
+const ON_PLAZA = new Set([TILE.PLAZA, TILE.FOUNTAIN, TILE.BOARD, TILE.BENCH, TILE.STALL]);
+
+// Kaip getGround, bet žiūri ir į kaimynus: žibintas aikštėje stovi ant
+// grindinio, o pievoje – ant žolės
+export function groundAt(map, x, y) {
+  const t = getTile(map, x, y);
+  if (t !== TILE.LAMP) return getGround(t);
+  for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    if (getTile(map, x + dx, y + dy) === TILE.PLAZA) return TILE.PLAZA;
+  }
   return TILE.GRASS;
 }
 

@@ -13,6 +13,7 @@ import { ensurePanel, textStyle, makeMinimapTexture } from '../art/SpriteLibrary
 import { TILE, TOWN, getPlotById } from '../../shared/WorldMap.js';
 import { WORLD } from '../../shared/worldConfig.js';
 import { VIEW_PX_W, VIEW_PX_H, SLOT, HOTBAR_Y, slotCenter } from './layout.js';
+import { Sound } from '../audio/Sound.js';
 
 const STATS_X = 600;
 const BAR_W = 200;
@@ -27,6 +28,7 @@ const MM_COLORS = {
   [TILE.TREE]: '#24622a', [TILE.ROCK]: '#8e9196', [TILE.BUSH]: '#3b8a35', [TILE.SHOP]: '#d04a3a',
   [TILE.FENCE]: '#c99258', [TILE.HOUSE]: '#4e7a52', [TILE.COTTAGE]: '#7a5a8a',
   [TILE.PLAZA]: '#c9c0ad', [TILE.FOUNTAIN]: '#8fd3ff', [TILE.BOARD]: '#ffd54f',
+  [TILE.BENCH]: '#c9c0ad', [TILE.STALL]: '#e0503a', [TILE.LAMP]: '#fff4dc', [TILE.SIGN]: '#c99258',
 };
 
 // =====================================================================
@@ -149,7 +151,7 @@ export class UIScene extends Phaser.Scene {
       'Pelė: kairys – eiti ir naudoti, dešinys – tik eiti',
       'WASD / rodyklės – eiti     Tarpas – naudoti     1–7 – daiktai   I – kuprinė',
       'E – kalbėti / parduotuvė / miegoti   J – užduotys   K – išsaugoti',
-      'N – naujas žaidimas   M – žemėlapis (mažas / didelis)   H – slėpti šią pagalbą',
+      'N – naujas žaidimas   M – žemėlapis   G – garsas   H – slėpti šią pagalbą',
     ];
     this.help = this.add.container(10, 10).setDepth(50);
     this.help.add(this.add.image(0, 0, ensurePanel(this, 'toast', 470, 90)).setOrigin(0));
@@ -182,6 +184,7 @@ export class UIScene extends Phaser.Scene {
     });
     this.input.keyboard.on('keydown-H', () => this.help.setVisible(!this.help.visible));
     this.input.keyboard.on('keydown-M', () => this.cycleMinimap());
+    this.input.keyboard.on('keydown-G', () => this.toggleSound());
 
     // Pelės ratukas – sukti per juostos daiktus
     this.input.on('wheel', (pointer, objects, dx, dy) => {
@@ -485,8 +488,22 @@ export class UIScene extends Phaser.Scene {
       this.setJournalOpen(!this.journalPanel);
     });
     this.makeButton(c, 144, 16, 136, 30, 'Atsiliepimas', () => this.openFeedback());
-    this.topButtonsRect = { x: 10, y: y0, w: 290, h: 32 };
+    // Garsas: įjungti / išjungti (taip pat klavišas G)
+    this.soundButton = this.makeButton(c, 288, 16, 118, 30, '', () => this.toggleSound());
+    this.updateSoundButton();
+    this.topButtonsRect = { x: 10, y: y0, w: 406, h: 32 };
     this.feedbackPanel = null;
+  }
+
+  toggleSound() {
+    Sound.unlock();
+    const muted = Sound.toggleMute();
+    this.updateSoundButton();
+    this.showToast(muted ? 'Garsas išjungtas (G – įjungti).' : 'Garsas įjungtas.');
+  }
+
+  updateSoundButton() {
+    this.soundButton.text.setText(Sound.muted ? 'Garsas: išj. (G)' : 'Garsas: įj. (G)');
   }
 
   openFeedback() {
@@ -543,6 +560,7 @@ export class UIScene extends Phaser.Scene {
 
     // Naktį be lietaus – mėnulis, kitaip – oro ikona
     const { night } = getDarkness(t.minutes, t.weather);
+    Sound.setNight(night > 0.4); // naktį muzika tylesnė
     const icon = t.weather === 'rain' ? 'icon_rain' : t.weather === 'snow' ? 'icon_snow' : night > 0.4 ? 'icon_moon' : 'icon_sun';
     if (this.weatherIcon.texture.key !== icon) this.weatherIcon.setTexture(icon);
 
@@ -661,9 +679,11 @@ export class UIScene extends Phaser.Scene {
       base.on('pointerout', () => hover.setVisible(false));
       base.on('pointerdown', () => {
         text.setY(y + 1);
+        Sound.play('click');
         onClick();
       });
     }
+    return { base, text };
   }
 
   // delayedCall(0) – atliekame kitame kadre, nes langas po veiksmo

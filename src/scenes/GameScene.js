@@ -20,12 +20,14 @@ import { endDay } from '../logic/DayCycle.js';
 import { onHarvest } from '../logic/Quests.js';
 import { hasEnergy, spendEnergy } from '../logic/Energy.js';
 // Visa grafika – tik iš SpriteLibrary (žr. src/art/SpriteLibrary.js)
-import { WATER_FRAMES, PLAYER_DIRS, WALK_FRAMES, PLAYER_FRAME, textStyle } from '../art/SpriteLibrary.js';
+import { WATER_FRAMES, PLAYER_DIRS, WALK_FRAMES, PLAYER_FRAME, LAMP_LIGHT_Y, textStyle } from '../art/SpriteLibrary.js';
 import { Environment } from './Environment.js';
 import { ChunkRenderer, tileHash as hash } from './ChunkRenderer.js';
+import { Ambience } from './Ambience.js';
 import { NpcManager } from './NpcManager.js';
 import { SKIP_TITLE_KEY } from './TitleScene.js';
 import { DialogController } from './DialogController.js';
+import { Sound } from '../audio/Sound.js';
 import { VIEW_PX_W, VIEW_PX_H, WORLD_PX_W, WORLD_PX_H, slotCenter } from './layout.js';
 
 const T = CONFIG.TILE_SIZE;
@@ -37,7 +39,7 @@ const S = T / 32;                      // dizaino vienetas → pikseliai (pastat
 // žemiau ekrane, tas piešiamas priekyje. Taip galima „užeiti už“ medžio.
 const DEPTH = {
   GROUND: 0, EDGE: 1, DECOR: 2, SOIL: 3, MARKER: 4,
-  OBJECTS: 10, FX: 5000, CLOUDS: 5100, NIGHT: 5150, LIGHTS: 5160, WEATHER: 5170,
+  OBJECTS: 10, FX: 5000, CREATURES: 5050, CLOUDS: 5100, NIGHT: 5150, LIGHTS: 5160, GLOW: 5165, WEATHER: 5170,
   VIGNETTE: 5200, CURSOR: 5300, TEXT: 5400,
 };
 const ySort = (y) => DEPTH.OBJECTS + y;
@@ -96,6 +98,8 @@ export class GameScene extends Phaser.Scene {
     // Diena / naktis, šviesos ir oras
     this.env = new Environment(this, { night: DEPTH.NIGHT, lights: DEPTH.LIGHTS, weather: DEPTH.WEATHER });
     for (const l of this.buildingLights) this.env.addLight(l.x, l.y, l.r);
+    // Drugeliai, jonvabaliai, krentantys lapai
+    this.ambience = new Ambience(this, { creatures: DEPTH.CREATURES, glow: DEPTH.GLOW });
 
     // Kaimynai (NPC) ir pokalbiai su jais
     this.npcs = new NpcManager(this, this.map, ySort, DEPTH.TEXT);
@@ -209,6 +213,11 @@ export class GameScene extends Phaser.Scene {
     addLights('shop', SHOP_POS.x, SHOP_POS.y, [[15.6, 59, 95], [49.6, 59, 95], [32, 70, 80]]);
     for (const plot of PLOTS) addLights('house', plot.house.x, plot.house.y, [[16.5, 62, 100], [48.5, 62, 100], [32, 34, 70]]);
     for (const c of COTTAGES) addLights(`cottage_${c.npcId}`, c.x, c.y, [[16.5, 62, 90], [48.5, 62, 90]]);
+    // Gatvės žibintai
+    const lampTop = T - 2 - this.textures.getFrame('lamp').height + LAMP_LIGHT_Y * S;
+    this.map.forEach((row, y) => row.forEach((tile, x) => {
+      if (tile === TILE.LAMP) this.buildingLights.push({ x: x * T + T / 2, y: y * T + lampTop, r: 120 });
+    }));
 
     const sx = SHOP_POS.x * T;
     const sy = (SHOP_POS.y + 2) * T;
@@ -420,6 +429,7 @@ export class GameScene extends Phaser.Scene {
       this.npcs.update(delta, this.state.time.minutes);
     }
     this.env.update(this.state.time.minutes, this.state.time.weather, this.player);
+    this.ambience.update(delta, { ...this.state.time, season: this.season });
 
     if (this.isBlockedByUI()) {
       this.player.setVelocity(0, 0);
@@ -492,6 +502,9 @@ export class GameScene extends Phaser.Scene {
     const moving = Math.abs(v.x) + Math.abs(v.y) > 5;
     if (moving) {
       this.player.anims.play(`walk_${this.facing}`, true);
+      const t = this.getPlayerTile();
+      const ground = getTile(this.map, t.x, t.y);
+      Sound.step(this.time.now, ground === TILE.PATH || ground === TILE.PLAZA || ground === TILE.BRIDGE);
     } else {
       this.player.anims.stop();
       this.player.setFrame(`${this.facing}_0`);
@@ -753,6 +766,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   playActionEffect(kind, itemId, x, y) {
+    Sound.play(kind);
     if (kind === 'till' || kind === 'clear') {
       this.swingTool(itemId, x, y);
       this.burst('dirt', x, y, 14);
@@ -772,6 +786,7 @@ export class GameScene extends Phaser.Scene {
   // x, y – nebūtini (pvz. parduotuvės veiksmai su langeliu nesusiję).
   applyResult(result, x, y) {
     if (result.ok && x !== undefined) this.refreshPlot(x, y);
+    if (!result.ok) Sound.play('error');
     this.toast(result.message, result.golden ? '#ffd54f' : result.ok ? GOOD : BAD, result.golden ? 4000 : undefined);
 
     // Atlygis: XP ir taškai (+ galimas naujas lygis)
@@ -791,11 +806,13 @@ export class GameScene extends Phaser.Scene {
 
   // Auksinis derlius – daug žybsnių ir trumpas auksinis blyksnis
   celebrateGolden(x, y) {
+    Sound.play('golden');
     this.burst('spark', x, y, 30);
     this.cameras.main.flash(250, 255, 220, 120);
   }
 
   onLevelUp() {
+    Sound.play('levelup');
     const lvl = this.state.level;
     const unlocked = cropsUnlockedAt(lvl);
     let msg = `Naujas lygis: ${lvl}! +${CONFIG.LEVEL_UP_COINS} mon., +${CONFIG.LEVEL_UP_POINTS} tšk.`;
@@ -818,6 +835,7 @@ export class GameScene extends Phaser.Scene {
 
   // ---------- Parduotuvė ir namelis (klavišas E) ----------
   openShop() {
+    Sound.play('open');
     EventBus.emit(EVENTS.TOGGLE_SHOP, true);
   }
 
@@ -841,6 +859,7 @@ export class GameScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
     this.npcs.faceToward(npc, this.player.x, this.player.y);
     this.faceToward(this.npcs.tileOf(npc));
+    Sound.play('talk');
     this.dialog.start(npc.id);
   }
 
@@ -859,6 +878,7 @@ export class GameScene extends Phaser.Scene {
     else if (action.type === 'sell') result = sellCrop(this.state, action.itemId, action.amount);
     else if (action.type === 'sellAll') result = sellAllCrops(this.state);
     else return;
+    if (result.ok) Sound.play('coin');
     this.applyResult(result);
   }
 
@@ -879,6 +899,7 @@ export class GameScene extends Phaser.Scene {
     if (this.sleeping) return;
     this.sleeping = true;
     this.stopWalking();
+    Sound.play('sleep');
     EventBus.emit(EVENTS.TOGGLE_SHOP, false);
 
     const cam = this.cameras.main;
@@ -903,6 +924,7 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(400, () => {
         this.sleeping = false;
         this.toast(this.morningMessage(summary, fainted), NEWS, 6000);
+        Sound.play('morning');
       });
     });
   }

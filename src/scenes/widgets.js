@@ -1,5 +1,6 @@
 import { CONFIG } from '../config.js';
 import { ensurePanel, textStyle } from '../art/SpriteLibrary.js';
+import { Sound } from '../audio/Sound.js';
 
 // =====================================================================
 //  BENDRI SĄSAJOS ELEMENTAI (naudoja ir pradžios ekranas, ir UIScene)
@@ -18,6 +19,7 @@ export function makeButton(scene, container, x, y, w, h, label, onClick, enabled
     base.on('pointerout', () => hover.setVisible(false));
     base.on('pointerdown', () => {
       text.setY(y + 1);
+      Sound.play('click');
       // kitame kadre – kad mygtukas nebūtų naikinamas jo paties paspaudimo metu
       scene.time.delayedCall(0, onClick);
     });

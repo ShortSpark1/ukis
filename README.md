@@ -72,6 +72,7 @@ mygtukai **„Tęsti“** (jei yra išsaugotas žaidimas; po juo matosi diena, l
 | N | Pradėti naują žaidimą |
 | H | Paslėpti / parodyti pagalbą |
 | M | Žemėlapis: mažas kampe → didelis ekrano viduryje → paslėptas |
+| G (arba mygtukas „Garsas“) | Įjungti / išjungti garsą ir muziką |
 | Paspausti žemėlapyje | Nueiti į tą pasaulio vietą |
 
 Taikiklio (kampuoto rėmelio) spalva parodo, kas nutiks paspaudus:
@@ -79,14 +80,21 @@ Taikiklio (kampuoto rėmelio) spalva parodo, kas nutiks paspaudus:
 
 **Pasaulis** yra 200×200 langelių (ekrane matosi 20×15), o kamera seka personažą.
 
-- **Miestas centre:** grįsta aikštė su fontanu ir skelbimų lenta, parduotuvė ir kaimynų nameliai.
+- **Miestas centre:** grįsta aikštė su fontanu, suoliukais, turgaus prekystaliais, gėlynais ir
+  skelbimų lenta. Aplink aikštę – parduotuvė ir kaimynų nameliai. Vakare užsidega žibintai.
 - **Ūkių zona aplink miestą:** 24 vienodi sklypai po 20×20 langelių. Kiekvienas sklypas turi
-  tvorą su vartais, namelį su lova ir dirvą. Sklypai sugrupuoti po 4, tarp jų eina takai.
+  tvorą su vartais, žibintą, lentelę su numeriu, namelį su lova (kiekvieno sklypo – kitos
+  spalvos stogas) ir dirvą. Sklypai sugrupuoti po 4, tarp jų eina takai.
 - **Tavo ūkis** – sklypas 10, iškart į vakarus nuo miesto (virš vartų užrašas „Tavo ūkis“).
   Kasti ir sodinti galima tik savo sklype, miegoti – tik savo namelyje. Kol kas (1 etapas)
   kiti sklypai tušti, bet juos jau galima apžiūrėti.
 - **Gamta tarp zonų:** giraitės, ežeras šiaurėje, tvenkinys pietuose. Už žiedinio kelio – tankus
   miškas ir upė, per kurią keliai eina **tiltais**.
+
+**Gyvybė ir garsai.** Dieną pavasarį ir vasarą skraido drugeliai, naktį šviečia jonvabaliai,
+rudenį krenta lapai, o pavasarį – žiedlapiai. Kiekvienas veiksmas turi savo garsą (kasimas,
+laistymas, derlius, monetos, naujas lygis), o fone groja rami muzika, naktį – tyliau. Visi garsai
+sukuriami kodu, failų nereikia. Garsą išjungsi klavišu **G**.
 
 Dešiniajame viršutiniame kampe yra žemėlapis: raudonas taškas rodo tave, baltas rėmelis –
 matomą plotą, geltonas – tavo sklypą. Paspaudus **M** jis padidėja per visą ekraną. Po žemėlapiu –
@@ -176,6 +184,8 @@ src/
 ├─ main.js            – sukuria Phaser žaidimą ir užregistruoja scenas
 ├─ config.js          – VISI skaičiai: kainos, augimo laikai, XP, lygiai (+ pavadinimas, FEEDBACK_URL)
 ├─ mobileCheck.js     – telefono atpažinimas ir pranešimas „Žaisk kompiuteryje“
+├─ audio/
+│  └─ Sound.js        – garso efektai ir muzika, sukurti kodu (Web Audio API)
 ├─ EventBus.js        – „radijas“, per kurį scenos siunčia žinutes viena kitai
 ├─ data/
 │  └─ npcs.js         – KAIMYNAI, jų tvarkaraščiai, DIALOGAI ir UŽDUOTYS (tik duomenys)
@@ -209,6 +219,7 @@ src/
    ├─ ChunkRenderer.js – pasaulio piešimas dalimis (chunk'ais): tik tai, kas prie kameros
    ├─ UIScene.js      – inventoriaus juosta, statistika, laikrodis, parduotuvė, miego langas
    ├─ Environment.js  – naktis, šviesos, lietus ir sniegas
+   ├─ Ambience.js     – drugeliai, jonvabaliai, krentantys lapai ir žiedlapiai
    ├─ NpcManager.js   – kaimynų vaikščiojimas pagal tvarkaraštį
    ├─ DialogController.js – ką kaimynas sako ir kokius atsakymus siūlo
    ├─ widgets.js      – bendri mygtukai ir atsiliepimo langas
@@ -381,6 +392,11 @@ Lentelėje nurodytas **rekomenduojamas** vieno kadro dydis.
 | `plaza.png` | 16x16 | 2 aikštės grindinio variantai |
 | `fountain.png` | 64x70 | fontanas (apačia – 4x4 langelių pagrindas) |
 | `board.png` | 32x32 | skelbimų lenta (apačia – 2x1 langelių pagrindas) |
+| `lamp.png` | 16x42 | gatvės žibintas |
+| `bench.png` | 16x16 | suoliukas |
+| `stall.png` | 32x30 | 2 turgaus prekystalių variantai (apačia – 2x1 langelių pagrindas) |
+| `sign.png` | 16x20 | sklypo lentelė (numeris užrašomas pats) |
+| `farmhouse.png` | 32x46 | 6 ūkių namelių variantai (skirtingi stogai) |
 | `player.png` | 24x32 | 4 stulpeliai (ėjimo kadrai) x 4 eilutės (kryptys: žemyn, kairėn, dešinėn, aukštyn) |
 | `crop_<augalas>.png` | 16x24 | tiek kadrų, kiek to augalo `stages` (4 arba 5), pvz. `crop_carrot.png` |
 | `crop_dead.png` | 16x24 | nuvytęs augalas |
@@ -429,6 +445,22 @@ palaistytas) ir `dead` (ar nuvyto). Kai einama miegoti, `endDay()` (`DayCycle.js
 - Pasikeitus sezonui esamų chunk'ų žemė iškepama iš naujo su to sezono piešiniais
   (`ChunkRenderer.setSeason`), o medžiams ir krūmams pakeičiamas piešinys (raktai su priesaga,
   pvz. `tree_0@winter`). Nauji chunk'ai iškart piešiami su dabartinio sezono piešiniais.
+
+### Kaip veikia garsas
+
+`src/audio/Sound.js` sukuria visus garsus naršyklės **Web Audio API**:
+
+- **osciliatorius** groja toną (sinusas – švelnus, trikampis – kaip fleita, kvadratas – „žaidimų“ garsas);
+- **triukšmas** per filtrą duoda šnaresius (kasimas – duslus, laistymas – „šliūkštelėjimas“);
+- garsumas greitai pakyla ir lėtai nuslopsta, todėl garsas skamba natūraliai.
+
+Kiekvienas efektas yra trumpas „receptas“ objekte `SFX` (pvz. `coin` – dvi aukštos natos iš
+eilės). **Muzika** groja akordus C – Am – F – G ir atsitiktinę (bet kaskart vienodą) melodiją iš
+pentatonikos natų, todėl jos natos visada dera tarpusavyje. Naktį muzika tylesnė ir retesnė.
+
+Naršyklės leidžia groti garsą tik po pirmo paspaudimo ar klavišo, todėl garsas įsijungia po
+pirmo veiksmo. Garsumą ir tempą keisk `CONFIG.SOUND` faile `src/config.js`. Ar garsas išjungtas,
+įsimenama naršyklėje.
 
 ### Taškai (points)
 

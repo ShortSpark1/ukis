@@ -5,7 +5,10 @@ import userAssets from 'virtual:user-assets';
 import {
   makeTerrain, GRASS_VARIANTS, DIRT_VARIANTS, FLOWER_VARIANTS, WATER_FRAMES, PATH_VARIANTS, PLAZA_VARIANTS, fenceFrameName,
 } from './terrain.js';
-import { makeObjects, TREE_VARIANTS, TREE_ORIGIN_Y, FOUNTAIN_TOP_Y } from './objects.js';
+import {
+  makeObjects, TREE_VARIANTS, TREE_ORIGIN_Y, FOUNTAIN_TOP_Y, LAMP_LIGHT_Y, SIGN_TEXT_Y, HOUSE_ROOFS, STALL_VARIANTS,
+  BUTTERFLY_VARIANTS,
+} from './objects.js';
 import { makePlayer, makeCharacter, PLAYER_DIRS, WALK_FRAMES, PLAYER_FRAME_W, PLAYER_FRAME_H } from './characters.js';
 import { NPCS } from '../data/npcs.js';
 import { makeCrops } from './crops.js';
@@ -28,10 +31,11 @@ import { SEASON_KEYS, sk } from './seasons.js';
 
 export {
   GRASS_VARIANTS, DIRT_VARIANTS, FLOWER_VARIANTS, WATER_FRAMES, PATH_VARIANTS, PLAZA_VARIANTS, TREE_VARIANTS,
-  TREE_ORIGIN_Y, FOUNTAIN_TOP_Y, PLAYER_DIRS, WALK_FRAMES, fenceFrameName, ensurePanel, textStyle, FONT_FAMILY,
+  TREE_ORIGIN_Y, FOUNTAIN_TOP_Y, LAMP_LIGHT_Y, SIGN_TEXT_Y, STALL_VARIANTS, BUTTERFLY_VARIANTS, PLAYER_DIRS, WALK_FRAMES, fenceFrameName, ensurePanel, textStyle, FONT_FAMILY,
   SEASON_KEYS, sk,
 };
 export const PLAYER_FRAME = { w: PLAYER_FRAME_W, h: PLAYER_FRAME_H };
+export const HOUSE_VARIANTS = HOUSE_ROOFS.length;
 
 const range = (n, fn) => Array.from({ length: n }, (_, i) => fn(i));
 const SIDES = ['n', 'e', 's', 'w'];
@@ -69,6 +73,11 @@ function buildOverrideList() {
     { file: 'house.png', names: ['house'], base: '32x46' },
     { file: 'fountain.png', names: ['fountain'], base: '64x70' },
     { file: 'board.png', names: ['board'], base: '32x32' },
+    { file: 'lamp.png', names: ['lamp'], base: '16x42' },
+    { file: 'bench.png', names: ['bench'], base: '16x16' },
+    { file: 'stall.png', names: range(STALL_VARIANTS, (i) => `stall_${i}`), base: '32x30' },
+    { file: 'sign.png', names: ['sign'], base: '16x20' },
+    { file: 'farmhouse.png', names: range(HOUSE_ROOFS.length, (i) => `house_${i}`), base: '32x46' },
     { file: 'crop_dead.png', names: ['crop_dead'], base: '16x24' },
     {
       file: 'player.png', sheet: 'player', cols: WALK_FRAMES,

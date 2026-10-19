@@ -1,8 +1,8 @@
 import { CONFIG } from '../config.js';
-import { getTile, getGround, isBlocked, TILE, COTTAGES } from '../../shared/WorldMap.js';
+import { getTile, getGround, groundAt, isBlocked, plotAt, TILE, COTTAGES } from '../../shared/WorldMap.js';
 import {
   GRASS_VARIANTS, DIRT_VARIANTS, FLOWER_VARIANTS, PATH_VARIANTS, PLAZA_VARIANTS, TREE_VARIANTS,
-  TREE_ORIGIN_Y, FOUNTAIN_TOP_Y, fenceFrameName, sk,
+  TREE_ORIGIN_Y, FOUNTAIN_TOP_Y, SIGN_TEXT_Y, STALL_VARIANTS, HOUSE_VARIANTS, fenceFrameName, sk, textStyle,
 } from '../art/SpriteLibrary.js';
 import { VIEW_PX_W, VIEW_PX_H } from './layout.js';
 
@@ -166,7 +166,7 @@ export class ChunkRenderer {
       for (let x = x0; x < x0 + CS; x++) {
         const type = getTile(map, x, y);
         if (type === null) continue;
-        const gnd = getGround(type);
+        const gnd = groundAt(map, x, y);
         const h = tileHash(x, y);
         const px = (x - x0) * T;
         const py = (y - y0) * T;
@@ -204,7 +204,7 @@ export class ChunkRenderer {
           if (gnd !== TILE.GRASS) {
             for (const [dir, [dx, dy]] of Object.entries(SIDES)) {
               const n = getTile(map, x + dx, y + dy);
-              if (n !== null && getGround(n) === TILE.GRASS) stamp(sk(`dirtedge_${dir}`, season), px, py);
+              if (n !== null && groundAt(map, x + dx, y + dy) === TILE.GRASS) stamp(sk(`dirtedge_${dir}`, season), px, py);
             }
           }
         }
@@ -257,13 +257,26 @@ export class ChunkRenderer {
           add(scene.add.image(px + T / 2, py + T, 'rock').setOrigin(0.5, 1).setDepth(ySort(py + T - 8)));
         } else if ((type === TILE.SHOP || type === TILE.HOUSE || type === TILE.COTTAGE) && isCorner(x, y, type)) {
           // Pastatai 2x2: piešinio apačia – ties pagrindo apačia, stogas kyla aukščiau
-          const key = type === TILE.SHOP ? 'shop' : type === TILE.HOUSE ? 'house' : `cottage_${this.cottageAt.get(`${x},${y}`)}`;
+          let key = type === TILE.SHOP ? 'shop' : `cottage_${this.cottageAt.get(`${x},${y}`)}`;
+          if (type === TILE.HOUSE) key = `house_${((plotAt(x, y)?.id ?? 1) - 1) % HOUSE_VARIANTS}`; // kiekvieno sklypo – savas stogas
           const by = py + 2 * T;
           add(scene.add.image(px, by, key).setOrigin(0, 1).setDepth(ySort(by - 4)));
         } else if (type === TILE.FOUNTAIN && isCorner(x, y, type)) {
           this.createFountain(chunk, add, px, py);
         } else if (type === TILE.BOARD && isCorner(x, y, type)) {
           add(scene.add.image(px, py + T, 'board').setOrigin(0, 1).setDepth(ySort(py + T - 4)));
+        } else if (type === TILE.LAMP) {
+          add(scene.add.image(px + T / 2, py + T - 2, 'lamp').setOrigin(0.5, 1).setDepth(ySort(py + T - 6)));
+        } else if (type === TILE.BENCH) {
+          add(scene.add.image(px + T / 2, py + T, 'bench').setOrigin(0.5, 1).setDepth(ySort(py + T - 8)));
+        } else if (type === TILE.STALL && isCorner(x, y, type)) {
+          add(scene.add.image(px, py + T, `stall_${h % STALL_VARIANTS}`).setOrigin(0, 1).setDepth(ySort(py + T - 6)));
+        } else if (type === TILE.SIGN) {
+          // Lentelė su sklypo numeriu
+          const img = add(scene.add.image(px + T / 2, py + T, 'sign').setOrigin(0.5, 1).setDepth(ySort(py + T - 6)));
+          const id = plotAt(x, y)?.id ?? '';
+          add(scene.add.text(img.x, py + T - img.height + SIGN_TEXT_Y * S, String(id), textStyle(15, '#4a2a10', { stroke: '#f0d098', strokeThickness: 2 }))
+            .setOrigin(0.5).setDepth(img.depth + 0.1));
         }
       }
     }

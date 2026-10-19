@@ -27,6 +27,14 @@ export function makeObjects(scene) {
   makeHouse(scene);
   makeFountain(scene);
   makeBoard(scene);
+  makeLamp(scene);
+  makeBench(scene);
+  STALL_COLORS.forEach((c, i) => makeStall(scene, `stall_${i}`, c));
+  makeSign(scene);
+  // Drugeliai (3 spalvų)
+  [[0xffd54f, 0xe8742a], [0x8fd3ff, 0x3a6ad0], [0xffb7d5, 0xc0508a]].forEach((c, i) => makeButterfly(scene, `butterfly_${i}`, c));
+  // Ūkių nameliai su skirtingų spalvų stogais (kad sklypai nebūtų vienodi)
+  HOUSE_ROOFS.forEach((roof, i) => makeHouse(scene, `house_${i}`, roof));
   // Kaimynų nameliai – tas pats piešinys, tik kitų spalvų stogai
   for (const [npcId, npc] of Object.entries(NPCS)) {
     if (npc.home.cottage) makeHouse(scene, `cottage_${npcId}`, npc.home.roof);
@@ -573,6 +581,146 @@ function makeBoard(scene) {
   });
 }
 
+// Ūkių namelių stogų spalvos [viršus, apačia]
+export const HOUSE_ROOFS = [
+  [0x5f8f5a, 0x3a5f3a], [0xc0584a, 0x7e3028], [0x5a86c0, 0x34507a],
+  [0xd09a3a, 0x8a5e1e], [0x8a6ab0, 0x54407a], [0x6a7a8a, 0x3e4a56],
+];
+// Prekystalių stogelių spalvos [juosta 1, juosta 2]
+const STALL_COLORS = [[0xe0503a, 0xfff4dc], [0x3a8ad0, 0xfff4dc]];
+export const STALL_VARIANTS = STALL_COLORS.length;
+
+// ---------- Žibintas (32 x 84 vnt., apačia ties y=84; šviesa ties LAMP_LIGHT_Y) ----------
+export const LAMP_LIGHT_Y = 18;
+function makeLamp(scene) {
+  drawScaled(scene, 'lamp', 32, 84, (ctx) => {
+    softShadow(ctx, 16, 81, 8, 3, 0.35);
+    // pagrindas ir stulpas
+    roundRect(ctx, 11, 74, 10, 8, 1.5);
+    fillStroke(ctx, vGradient(ctx, 74, 82, 0x4a4f58, 0x2a2e34), OUTLINE, 0.7);
+    ctx.beginPath();
+    ctx.rect(14.5, 28, 3, 47);
+    const pole = ctx.createLinearGradient(14.5, 0, 17.5, 0);
+    pole.addColorStop(0, css(0x6a707a));
+    pole.addColorStop(1, css(0x2e3238));
+    fillStroke(ctx, pole, OUTLINE, 0.6);
+    // žibinto dėžutė su šiltu stiklu
+    ctx.beginPath();
+    ctx.moveTo(9, 12); ctx.lineTo(23, 12); ctx.lineTo(21, 28); ctx.lineTo(11, 28);
+    ctx.closePath();
+    const glass = ctx.createRadialGradient(16, LAMP_LIGHT_Y, 1, 16, LAMP_LIGHT_Y, 10);
+    glass.addColorStop(0, css(0xfff6c8));
+    glass.addColorStop(1, css(0xf2b84a));
+    fillStroke(ctx, glass, 0x2a2e34, 1);
+    ctx.strokeStyle = css(0x2a2e34, 0.9);
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(16, 12); ctx.lineTo(16, 28);
+    ctx.stroke();
+    // stogelis
+    ctx.beginPath();
+    ctx.moveTo(7, 12); ctx.lineTo(16, 5); ctx.lineTo(25, 12);
+    ctx.closePath();
+    fillStroke(ctx, vGradient(ctx, 5, 12, 0x5a606a, 0x2e3238), OUTLINE, 0.7);
+    circle(ctx, 16, 4, 1.4);
+    ctx.fillStyle = css(0x2e3238);
+    ctx.fill();
+  });
+}
+
+// ---------- Suoliukas (32 x 32 vnt.) ----------
+function makeBench(scene) {
+  drawScaled(scene, 'bench', 32, 32, (ctx) => {
+    softShadow(ctx, 16, 28, 14, 3, 0.35);
+    // kojos
+    for (const x of [5, 25]) {
+      ctx.beginPath();
+      ctx.rect(x, 18, 2.5, 10);
+      fillStroke(ctx, 0x2e3238, OUTLINE, 0.5);
+    }
+    // atlošas ir sėdynė (lentos)
+    for (const [y, h] of [[8, 3.2], [12, 3.2], [18, 4]]) {
+      roundRect(ctx, 2, y, 28, h, 1);
+      fillStroke(ctx, vGradient(ctx, y, y + h, 0xc08a4a, 0x8a5a2a), OUTLINE, 0.6);
+    }
+  });
+}
+
+// ---------- Turgaus prekystalis (2x1 langeliai = 64 x 60 vnt., apačia ties y=60) ----------
+function makeStall(scene, key, [c1, c2]) {
+  drawScaled(scene, key, 64, 60, (ctx) => {
+    softShadow(ctx, 32, 57, 30, 4, 0.35);
+    // stulpeliai
+    for (const x of [5, 57]) {
+      ctx.beginPath();
+      ctx.rect(x, 14, 2.5, 42);
+      fillStroke(ctx, 0x6e4321, OUTLINE, 0.5);
+    }
+    // stalas su prekėmis
+    roundRect(ctx, 2, 38, 60, 18, 2);
+    fillStroke(ctx, vGradient(ctx, 38, 56, 0xb07a40, 0x7a4c22), OUTLINE, 0.8);
+    const goods = [[12, 0xe8742a], [22, 0xd03a2a], [32, 0x7ec850], [42, 0xffd54f], [52, 0x9a5fc0]];
+    for (const [x, color] of goods) {
+      for (const [dx, dy] of [[-3, 0], [3, 0], [0, -3]]) {
+        circle(ctx, x + dx, 37 + dy, 3);
+        ctx.fillStyle = css(color);
+        ctx.fill();
+        ctx.strokeStyle = css(darken(color, 0.4), 0.8);
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+    }
+    // dryžuotas stogelis su banguotu kraštu
+    for (let i = 0; i < 8; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * 8, 8);
+      ctx.lineTo(i * 8 + 8, 8);
+      ctx.lineTo(i * 8 + 8, 18);
+      ctx.quadraticCurveTo(i * 8 + 4, 23, i * 8, 18);
+      ctx.closePath();
+      ctx.fillStyle = css(i % 2 ? c2 : c1);
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.rect(0, 4, 64, 5);
+    fillStroke(ctx, darken(c1, 0.25), OUTLINE, 0.7);
+  });
+}
+
+// ---------- Sklypo lentelė (32 x 40 vnt.; numeris užrašomas tekstu ChunkRenderer'yje) ----------
+export const SIGN_TEXT_Y = 17; // lentelės vidurys nuo viršaus (dizaino vienetais)
+function makeSign(scene) {
+  drawScaled(scene, 'sign', 32, 40, (ctx) => {
+    softShadow(ctx, 16, 37, 8, 3, 0.35);
+    ctx.beginPath();
+    ctx.rect(14.5, 20, 3, 18);
+    fillStroke(ctx, 0x6e4321, OUTLINE, 0.6);
+    roundRect(ctx, 4, 8, 24, 18, 2.5);
+    fillStroke(ctx, vGradient(ctx, 8, 26, 0xe0b070, 0xa8743a), OUTLINE, 0.9);
+    ctx.strokeStyle = css(0x7a4c22, 0.5);
+    ctx.lineWidth = 0.5;
+    roundRect(ctx, 6, 10, 20, 14, 1.5);
+    ctx.stroke();
+  });
+}
+
+// ---------- Drugelis (16 x 12 vnt.): sparnų mojavimą daro GameScene (suspaudžiant per plotį) ----------
+export const BUTTERFLY_VARIANTS = 3;
+function makeButterfly(scene, key, [wing, edge]) {
+  drawScaled(scene, key, 16, 12, (ctx) => {
+    for (const dir of [-1, 1]) {
+      ellipse(ctx, 8 + dir * 4, 4.5, 3.8, 3.2, dir * 0.4);
+      fillStroke(ctx, wing, edge, 0.8, 1);
+      ellipse(ctx, 8 + dir * 3, 8.5, 2.6, 2.2, -dir * 0.3);
+      fillStroke(ctx, lighten(wing, 0.2), edge, 0.7, 1);
+    }
+    ctx.beginPath();
+    ctx.rect(7.4, 2.5, 1.2, 8);
+    ctx.fillStyle = css(0x2b1d14);
+    ctx.fill();
+  });
+}
+
 function makeEffects(scene) {
   // Šešėlis po personažu
   drawScaled(scene, 'shadow', 20, 8, (ctx) => softShadow(ctx, 10, 4, 10, 4, 0.4));
@@ -638,6 +786,17 @@ function makeEffects(scene) {
     ellipse(ctx, 2.5, 1.5, 2.3, 1.1);
     ctx.fillStyle = css(0x6abf45);
     ctx.fill();
+  });
+  // Baltas lapelis – spalvą jam suteikia „tint“ (rudenį oranžinis, pavasarį rožinis)
+  drawScaled(scene, 'p_petal', 6, 4, (ctx) => {
+    ellipse(ctx, 3, 2, 2.8, 1.4, 0.3);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(0.6, 2.6); ctx.lineTo(5.4, 1.4);
+    ctx.stroke();
   });
   drawScaled(scene, 'p_spark', 6, 6, (ctx) => {
     star(ctx, 3, 3, 3, 0.8, 4);

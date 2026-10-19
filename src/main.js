@@ -5,6 +5,7 @@ import { TitleScene } from './scenes/TitleScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { UIScene } from './scenes/UIScene.js';
 import { isLikelyPhone, showMobileNotice } from './mobileCheck.js';
+import { Sound } from './audio/Sound.js';
 
 // =====================================================================
 //  ĮĖJIMO TAŠKAS
@@ -31,6 +32,11 @@ const config = {
 };
 
 const game = new Phaser.Game(config);
+
+// Naršyklės leidžia groti garsą tik po pirmo paspaudimo ar klavišo
+const unlockSound = () => Sound.unlock();
+window.addEventListener('pointerdown', unlockSound);
+window.addEventListener('keydown', unlockSound);
 
 // Telefone – pranešimas, kad žaisti geriau kompiuteryje
 if (isLikelyPhone()) showMobileNotice();

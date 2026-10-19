@@ -39,6 +39,21 @@ export const CONFIG = {
   DEFAULT_PLOT_ID: WORLD.DEFAULT_PLOT_ID,
   HUD_HEIGHT: 100,      // apatinės juostos (inventoriaus) aukštis pikseliais
 
+  // --- Garsas ir muzika (visi garsai kuriami kodu, žr. src/audio/Sound.js) ---
+  // Garsą žaidėjas įjungia / išjungia klavišu G arba mygtuku viršuje.
+  SOUND: {
+    sfxVolume: 0.5,     // efektų garsumas (0…1)
+    musicVolume: 0.22,  // muzikos garsumas (0…1)
+    music: true,        // ar groti ramią fono muziką
+    musicBpm: 76,       // muzikos tempas (dūžiai per minutę)
+    stepMs: 300,        // žingsnių garsas – ne dažniau kaip kas tiek ms
+  },
+
+  // --- Gyvybė aplink (src/scenes/Ambience.js) ---
+  AMBIENCE: {
+    butterflies: 6,     // kiek drugelių skraido aplink tave dieną (pavasarį ir vasarą)
+  },
+
   // --- Personažas ---
   PLAYER_SPEED: 3.8,              // judėjimo greitis (langeliai per sekundę)
 
